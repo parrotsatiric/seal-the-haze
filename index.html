@@ -111,9 +111,11 @@ body[data-ui="play"] #touch .zone { pointer-events: auto; }
 #touch .call { width: 17vmin; height: 17vmin; border-radius: 50%; font-size: 8vmin; }
 #touch .c0 { left: max(3vmin, env(safe-area-inset-left, 0px)); border-color: #f2b134; }
 #touch .c1 { right: max(3vmin, env(safe-area-inset-right, 0px)); border-color: #4fe3ff; }
-body[data-ui="menu"] #touch .pause, body[data-ui="menu"] #touch .call { display: none; }
+#touch .push { width: 17vmin; height: 10vmin; border-radius: 2.4vmin; font-size: 3.4vmin; }
+body[data-ui="menu"] #touch .pause, body[data-ui="menu"] #touch .call, body[data-ui="menu"] #touch .push { display: none; }
+body:not([data-ff="1"]) #touch .push { display: none; }
 body[data-ui="play"] #touch .ok { display: none; }
-body:not([data-np="2"]) #touch .call { display: none; }
+body:not([data-np="2"]) #touch .call, body:not([data-np="2"]) #touch .push { display: none; }
 
 /* phone held upright: screen on top, thumb zones below it */
 body[data-mode="port"] #shell { justify-content: flex-start; }
@@ -130,7 +132,6 @@ body[data-mode="land"] #bar button { font-size: 7px; padding: 5px 7px; opacity: 
 </head>
 <body>
 
-
 <main id="shell">
   <canvas id="game" width="384" height="240" tabindex="0" aria-label="Seal the Haze game screen"></canvas>
   <div id="touch">
@@ -138,6 +139,8 @@ body[data-mode="land"] #bar button { font-size: 7px; padding: 5px 7px; opacity: 
     <div class="zone" id="zone1"></div>
     <button class="tb call c0" type="button" data-tap="ping0" aria-label="Player 1 call for help">!</button>
     <button class="tb call c1" type="button" data-tap="ping1" aria-label="Player 2 call for help">!</button>
+    <button class="tb push c0" type="button" data-tap="push0" aria-label="Player 1 push">PUSH</button>
+    <button class="tb push c1" type="button" data-tap="push1" aria-label="Player 2 push">PUSH</button>
     <button class="tb pause" type="button" data-tap="pause" aria-label="Pause">II</button>
     <button class="tb ok" type="button" data-tap="ok" aria-label="OK">OK</button>
   </div>
@@ -255,6 +258,56 @@ function noise(d, v = 0.05) {
   const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = buf; g.gain.value = v;
   s.connect(g); g.connect(actx.destination); s.start();
 }
+
+// the loud bus: everything dramatic runs through a distorter and a squasher so it really hurts
+let bus = null, nbuf = null, screamUntil = 0;
+function noiseBuf() {
+  if (!nbuf) { nbuf = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate); const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  return nbuf;
+}
+function loudBus() {
+  if (!actx || muted) return null;
+  if (!bus) {
+    const inp0 = actx.createGain(); inp0.gain.value = 2.4;
+    const ws = actx.createWaveShaper(), curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) curve[i] = Math.tanh((i / 512 - 1) * 3.4);
+    ws.curve = curve; ws.oversample = '2x';
+    const cp = actx.createDynamicsCompressor(); cp.threshold.value = -20; cp.ratio.value = 14; cp.attack.value = 0.002; cp.release.value = 0.12;
+    const out = actx.createGain(); out.gain.value = 1;
+    inp0.connect(ws); ws.connect(cp); cp.connect(out); out.connect(actx.destination);
+    bus = { in: inp0, out };
+  }
+  return bus;
+}
+function killBus() {
+  if (!bus) return;
+  const b = bus; bus = null;
+  try { b.out.gain.setTargetAtTime(0, actx.currentTime, 0.02); } catch (e) { /* optional */ }
+  setTimeout(() => { try { b.out.disconnect(); } catch (e) { /* optional */ } }, 500);
+}
+function envG(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+// a burst of filtered noise: breath, spit, rasp
+function nz(t, d, type, f0, f1, q, peak, a = 0.01) {
+  const b = loudBus(); if (!b) return;
+  const src = actx.createBufferSource(); src.buffer = noiseBuf(); src.loop = true;
+  const f = actx.createBiquadFilter(); f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + d);
+  const g = actx.createGain(); envG(g, t, a, peak, d);
+  src.connect(f); f.connect(g); g.connect(b.in); src.start(t, Math.random()); src.stop(t + a + d + 0.05);
+}
+// a voiced buzz through a throat filter, with a wobble (am) for the wet rattle
+function vc(t, d, f0, f1, peak, formant, am = 0, a = 0.01, type = 'sawtooth') {
+  const b = loudBus(); if (!b) return;
+  const o = actx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + d);
+  const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = formant; f.Q.value = 2.5;
+  const g = actx.createGain(); envG(g, t, a, peak, d);
+  if (am) { const l = actx.createOscillator(), lg = actx.createGain(); l.frequency.value = am; lg.gain.value = peak * 0.7; l.connect(lg); lg.connect(g.gain); l.start(t); l.stop(t + a + d + 0.05); }
+  o.connect(f); f.connect(g); g.connect(b.in); o.start(t); o.stop(t + a + d + 0.05);
+}
+function speak(txt, pitch, rate) {
+  if (muted) return;
+  try { const u = new SpeechSynthesisUtterance(txt); u.pitch = pitch; u.rate = rate; u.volume = 1; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* optional */ }
+}
+function stopSpeech() { try { speechSynthesis.cancel(); } catch (e) { /* optional */ } }
 const SFX = {
   ui: () => tone(660, 0.05),
   ok: () => { tone(520, 0.07); tone(780, 0.1, 'square', 0.05, 0, 0.07); },
@@ -273,7 +326,59 @@ const SFX = {
   crack: () => { noise(0.1, 0.06); tone(220, 0.12, 'square', 0.04, -120); },
   bump: () => { noise(0.08, 0.06); tone(150, 0.1, 'square', 0.06, -60); },
   snap: () => { noise(0.12, 0.07); tone(900, 0.06, 'square', 0.05, -500); tone(200, 0.12, 'sawtooth', 0.05, -100, 0.05); },
-  revive: () => [392, 523, 659, 784].forEach((f, i) => tone(f, 0.14, 'triangle', 0.06, 0, i * 0.07))
+  revive: () => [392, 523, 659, 784].forEach((f, i) => tone(f, 0.14, 'triangle', 0.06, 0, i * 0.07)),
+  whoosh: () => noise(0.09, 0.03),
+  thud: () => { noise(0.12, 0.08); tone(90, 0.15, 'sine', 0.12, -40); },
+  siren2: n => tone(n ? 960 : 700, 0.4, 'square', 0.05),
+  // a long, ugly, wet coughing fit: gasp, hacks, gasp, more hacks, a squeaky wheeze and a final retch
+  coughFit: () => {
+    if (!actx || muted) return;
+    killBus();
+    const t = actx.currentTime + 0.02;
+    const gasp = (at, d) => nz(t + at, d, 'highpass', 1200, 4200, 0.7, 0.9, d * 0.8);
+    const hack = (at, big) => {
+      nz(t + at, 0.3, 'bandpass', 2000, 500, 0.9, 1.1 * big, 0.008);
+      nz(t + at, 0.2, 'lowpass', 900, 300, 0.7, 1.0 * big, 0.005);
+      vc(t + at, 0.24, 240, 85, 0.9 * big, 750, 42, 0.01);
+      vc(t + at + 0.03, 0.18, 150, 70, 0.7 * big, 400, 0, 0.01, 'square');
+    };
+    gasp(0, 0.22);
+    [0.26, 0.5, 0.72].forEach((a, i) => hack(a, 1 + i * 0.1));
+    gasp(1.0, 0.28);
+    [1.35, 1.55, 1.75, 1.95].forEach((a, i) => hack(a, 1.1 + i * 0.05));
+    vc(t + 2.25, 0.8, 420, 760, 0.55, 1700, 17, 0.1, 'square'); nz(t + 2.25, 0.8, 'bandpass', 2600, 3400, 6, 0.6, 0.15);
+    vc(t + 3.0, 0.55, 95, 42, 1.0, 300, 24, 0.05); nz(t + 3.0, 0.5, 'lowpass', 600, 150, 0.7, 1.0, 0.05);
+    hack(3.15, 1.5);
+    nz(t + 3.3, 0.5, 'lowpass', 500, 120, 0.7, 0.9, 0.02);
+  },
+  // AHHHHHH: a strained scream that rises, wobbles and then drops away as the body falls
+  scream: i => {
+    const b = loudBus(); if (!b) return;
+    const t = actx.currentTime;
+    if (t < screamUntil) return;
+    screamUntil = t + 1.3;
+    const D = 1.8, base = i ? 520 : 390, sum = actx.createGain(), env = actx.createGain();
+    env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(0.9, t + 0.05); env.gain.setValueAtTime(0.9, t + 0.9); env.gain.exponentialRampToValueAtTime(0.0001, t + D);
+    [[850, 5, 1], [1250, 6, 0.7], [2800, 8, 0.35]].forEach(([fq, q, gn]) => {
+      const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = fq; f.Q.value = q;
+      const g = actx.createGain(); g.gain.value = gn; sum.connect(f); f.connect(g); g.connect(env);
+    });
+    env.connect(b.in);
+    [0, 14].forEach(det => {
+      const o = actx.createOscillator(); o.type = 'sawtooth'; o.detune.value = det;
+      o.frequency.setValueAtTime(base * 0.85, t); o.frequency.linearRampToValueAtTime(base * 1.6, t + 0.12);
+      o.frequency.linearRampToValueAtTime(base * 1.35, t + 0.6); o.frequency.exponentialRampToValueAtTime(base * 0.5, t + D);
+      const l = actx.createOscillator(), lg = actx.createGain(); l.frequency.value = 6.5;
+      lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(base * 0.05, t + 0.6);
+      l.connect(lg); lg.connect(o.frequency); o.connect(sum); o.start(t); l.start(t); o.stop(t + D + 0.05); l.stop(t + D + 0.05);
+    });
+    nz(t, D, 'bandpass', 1800, 1200, 1.2, 0.3, 0.05);
+  },
+  growl: () => {
+    if (!actx || muted) return;
+    const t = actx.currentTime;
+    vc(t, 1.1, 72, 40, 1.0, 180, 30, 0.04); vc(t, 1.1, 144, 80, 0.5, 300, 0, 0.04, 'square'); nz(t, 0.6, 'lowpass', 500, 100, 0.7, 0.5, 0.05);
+  }
 };
 
 /* ---------- dither patterns: the classic 8-bit way to fake transparency ---------- */
@@ -796,7 +901,7 @@ const G = { state: 'title', t: 0, np: 1, ch: [0, 1], pick: 0, lv: 1, heat: 0, ff
 let P = null;                                    // everything about the current round
 const mkInput = () => ({ left: false, right: false, up: false, down: false, ax: 0, ay: 0 });   // ax, ay: thumb stick (-1 to 1)
 const inp = [mkInput(), mkInput()];              // one input state per player
-const pingEdge = [false, false];
+const pingEdge = [false, false], pushEdge = [false, false];
 const pressed = new Set();                       // one-frame key presses, used by menus
 const ui = { cur: [], next: [], mx: -1, my: -1, key: '' };
 let best = {};
@@ -926,7 +1031,7 @@ const FAM_LOSE = ['AH GONG NEEDED A DOCTOR.', 'BABY MEI NEEDED A DOCTOR.', 'MEOW
 const FLOOR_RANGES = [[3, 8], [10, 17], [20, 32]];
 const RSCALE = [{ psi: 0.72, dur: 0.62, gust: 1.0 }, { psi: 0.88, dur: 0.82, gust: 0.92 }, { psi: 1.0, dur: 1.0, gust: 0.85 }];
 
-function go(state) { G.state = state; G.t = 0; pressed.clear(); pingEdge[0] = pingEdge[1] = false; }
+function go(state) { G.state = state; G.t = 0; pressed.clear(); pingEdge[0] = pingEdge[1] = false; pushEdge[0] = pushEdge[1] = false; }
 function band(psi) {
   if (psi <= 50) return { n: 'GOOD', c: '#4fbf6a' };
   if (psi <= 100) return { n: 'MODERATE', c: '#4aa3ff' };
@@ -986,10 +1091,21 @@ function startRound() {
   const { pm, tm } = calcStats();
   for (const w of L.windows) { w.sealed = false; w.life = 0; w.maxLife = par.sealLife; w.progress = 0; w.flash = 0; w.failFlash = 0; w.crack = false; w.holders = 0; w.contrib = [0, 0]; }
   for (const r of L.rooms) r.h = 0;
+  // the second player starts beside the first, on open floor in the same room (one layout put them inside a wall)
+  const solidAtL = (px, py) => { const x0 = Math.floor((px - 3) / T), x1 = Math.floor((px + 3 - 0.01) / T), y0 = Math.floor((py - 3) / T), y1 = Math.floor((py + 3 - 0.01) / T); for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) if (L.solid[ty * L.W + tx]) return true; return false; };
+  const roomOf = (px, py) => L.roomFull[Math.floor(py / T) * L.W + Math.floor(px / T)];
+  const spawnFor = i => {
+    const sx = L.spawnPx.x, sy = L.spawnPx.y;
+    if (i === 0) return { x: sx, y: sy };
+    for (const [dx, dy] of [[12, 0], [-12, 0], [0, 12], [0, -12], [8, 8], [-8, 8], [8, -8], [-8, -8], [6, 0], [-6, 0], [0, 6], [0, -6]]) {
+      if (!solidAtL(sx + dx, sy + dy) && roomOf(sx + dx, sy + dy) === roomOf(sx, sy)) return { x: sx + dx, y: sy + dy };
+    }
+    return { x: sx, y: sy };
+  };
   const pl = [];
   for (let i = 0; i < np; i++) {
-    const ch = CHARS[G.ch[i]];
-    pl.push({ i, ch, m: pm[i], x: L.spawnPx.x + i * 12, y: L.spawnPx.y, dir: 'd', anim: 0, moving: false, hp: run.hp[i], maxHp: run.max[i], mask: 0, hurt: 0, coughT: 0, deploy: null, nw: null, can: false, rushT: 0, inv: 0, stagger: 0, bumpCD: 0, vx: 0, vy: 0 });
+    const ch = CHARS[G.ch[i]], sp = spawnFor(i);
+    pl.push({ i, ch, m: pm[i], x: sp.x, y: sp.y, dir: 'd', anim: 0, moving: false, hp: run.hp[i], maxHp: run.max[i], mask: 0, hurt: 0, coughT: 0, deploy: null, nw: null, can: false, rushT: 0, inv: 0, stagger: 0, pushCD: 0, shoveT: 0, fall: 0, fallImm: 0, fdx: 1, sx: 0, sy: 0, vx: 0, vy: 0 });
   }
   const fam = { room: L.rooms.findIndex(r => r.id === L.family.room), hp: 100, max: 100, hurt: 0, name: FAMN[d], kind: d };
   P = { L, np, mp, par, tm, pl, fam, depth: d, floor: run.floors[d], boss, risk, t: 0, psi: Math.round(par.psi0), masks: [], maskTimer: 9, evTimer: rand(par.gust[0], par.gust[1]) * mp.gust,
@@ -1049,22 +1165,28 @@ function scoreSeal(w, holders, wasSealed, wasCrack) {
   }
   w.contrib = [0, 0];
 }
+const FACE = { r: [1, 0], l: [-1, 0], d: [0, 1], u: [0, -1] };
+// knock a player flat: they slide away from the source, scream all the way down, and can't seal until they get up
+function makeFall(q, fx, fy, by, tag) {
+  let dx = q.x - fx, dy = q.y - fy; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+  q.fall = 1.35; q.fallImm = 2.8; q.deploy = null; q.stagger = 0; q.hurt = 1; q.sx = dx * 95; q.sy = dy * 95; q.fdx = dx >= 0 ? 1 : -1;
+  const floor = q.maxHp * 0.2;
+  if (q.hp > floor) q.hp = Math.max(floor, q.hp - q.maxHp * 0.04);
+  SFX.scream(q.i); SFX.thud(); P.shake = Math.max(P.shake, 0.25);
+  burst(P.L.ox + q.x, P.L.oy + q.y - 6, '#ffffff', 10, 40);
+  P.pops.push({ x: P.L.ox + q.x, y: P.L.oy + q.y - 26, y0: P.L.oy + q.y - 26, t: 1.2, txt: 'AHHHHHH!', col: PCOL[q.i] });
+  addMsg(tag || ('P' + (by + 1) + ' PUSHED P' + (q.i + 1) + '!'), PCOL[by]);
+}
 // friendly fire: the frame snaps open and clips anyone loitering beside it. A little damage, never a knockout.
 function snapFrame(w, holders) {
   const r = w.rect, L = P.L;
   for (const p of P.pl) {
-    if (holders.includes(p) || p.inv > 0) continue;
+    if (holders.includes(p) || p.inv > 0 || p.fall > 0 || p.fallImm > 0) continue;
     const dx = Math.max(r.x - p.x, 0, p.x - (r.x + r.w)), dy = Math.max(r.y - p.y, 0, p.y - (r.y + r.h));
     if (Math.hypot(dx, dy) > 15) continue;
-    p.stagger = 0.7; p.deploy = null; p.hurt = 1;
-    knock(p, r.x + r.w / 2, r.y + r.h / 2, 10);
-    const floor = p.maxHp * 0.2;
-    if (p.hp > floor) p.hp = Math.max(floor, p.hp - p.maxHp * 0.04);
     const who = holders[0] ? holders[0].i : 1 - p.i;
-    P.stats.snaps++; SFX.snap(); P.shake = Math.max(P.shake, 0.2);
-    burst(L.ox + p.x, L.oy + p.y - 8, '#ff6b5a', 10, 40);
-    P.pops.push({ x: L.ox + p.x, y: L.oy + p.y - 26, y0: L.oy + p.y - 26, t: 1.0, txt: 'SNAP!', col: '#ff8a7a' });
-    addMsg('P' + (who + 1) + ' FRAME SNAPPED P' + (p.i + 1) + '!', PCOL[who]);
+    P.stats.snaps++; SFX.snap();
+    makeFall(p, r.x + r.w / 2, r.y + r.h / 2, who, 'P' + (who + 1) + ' FRAME SNAPPED P' + (p.i + 1) + '!');
   }
 }
 function roomAtPx(x, y) { const L = P.L; return L.roomFull[Math.floor(y / T) * L.W + Math.floor(x / T)]; }
@@ -1120,8 +1242,7 @@ function endRun(win, reason) {
   meta.shards += sh; meta.runs = (meta.runs || 0) + 1; if (win) meta.wins = (meta.wins || 0) + 1; meta.deepest = Math.max(meta.deepest || 0, run.cleared); saveMeta();
   const k = bestKey(), old = best[k];
   if (!old || run.cleared > old.c || (run.cleared === old.c && stars > old.s)) saveBest(k, { c: run.cleared, s: stars });
-  win ? SFX.win() : SFX.lose();
-  go('end');
+  if (win) { SFX.win(); go('end'); } else startDeath();
 }
 
 function updatePlay(dt) {
@@ -1160,11 +1281,19 @@ function updatePlay(dt) {
     p.can = !!(nw && (!nw.sealed || nw.life < nw.maxLife * 0.97));
     if (p.rushT > 0) p.rushT -= dt;
     if (p.inv > 0) p.inv -= dt;
-    if (p.bumpCD > 0) p.bumpCD -= dt;
+    if (p.pushCD > 0) p.pushCD -= dt;
+    if (p.shoveT > 0) p.shoveT -= dt;
+    if (p.fallImm > 0) p.fallImm -= dt;
+    const falling = p.fall > 0;
+    if (falling) {                                           // flat on the floor, sliding to a stop
+      p.fall -= dt; const dk = Math.max(0, 1 - 4.5 * dt); p.sx *= dk; p.sy *= dk;
+      if (!hitSolid(p.x + p.sx * dt, p.y)) p.x += p.sx * dt;
+      if (!hitSolid(p.x, p.y + p.sy * dt)) p.y += p.sy * dt;
+    }
     const dazed = p.stagger > 0; if (dazed) p.stagger -= dt;
     // "moving" means actually moving: pushing into a wall or window counts as standing still
     let moved = false; p.vx = 0; p.vy = 0;
-    if (ix !== 0 || iy !== 0) {
+    if ((ix !== 0 || iy !== 0) && !falling) {
       const len = Math.hypot(ix, iy), sp = 58 * p.ch.speed * (1 + p.m.spd + (p.rushT > 0 ? p.m.rush : 0)) * (dazed ? 0.4 : 1) * dt * Math.min(1, len);
       const dx = ix / len * sp, dy = iy / len * sp;
       if (!hitSolid(p.x + dx, p.y)) { p.x += dx; if (dx) moved = true; }
@@ -1173,22 +1302,21 @@ function updatePlay(dt) {
       if (moved) { p.vx = ix / len; p.vy = iy / len; }
     }
     p.moving = moved;
-    p.deploy = !moved && p.can && !dazed ? nw : null;
+    p.deploy = !moved && p.can && !dazed && !falling ? nw : null;
     if (moved) p.anim += dt * 9; else p.anim = 0;
   }
-  // friendly fire, part one: walk into your partner and they stumble, losing their grip on the window
-  if (P.rival) {
-    const [a0, b0] = P.pl;
-    for (const [a, b] of [[a0, b0], [b0, a0]]) {
-      if (!a.moving || b.bumpCD > 0 || b.inv > 0) continue;
-      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-      if (d > 8 || d < 0.01 || (a.vx * dx + a.vy * dy) / d < 0.5) continue;   // only the one actually walking into the other
-      b.bumpCD = 2; b.stagger = 0.5; b.deploy = null; a.stagger = Math.max(a.stagger, 0.15);
-      knock(b, a.x, a.y, 7); knock(a, b.x, b.y, 2);
-      P.stats.bumps++; SFX.bump(); burst(L.ox + (a.x + b.x) / 2, L.oy + (a.y + b.y) / 2 - 6, '#ffffff', 8, 36);
-      P.pops.push({ x: L.ox + b.x, y: L.oy + b.y - 26, y0: L.oy + b.y - 26, t: 0.9, txt: 'BUMP!', col: PCOL[a.i] });
-      addMsg('P' + (a.i + 1) + ' BUMPED P' + (b.i + 1) + '!', PCOL[a.i]);
-    }
+  // friendly fire, part one: press your push key and your partner goes flying, losing their grip on the window
+  for (const p of P.pl) {
+    if (!pushEdge[p.i]) continue;
+    pushEdge[p.i] = false;
+    if (!P.rival || p.fall > 0 || p.pushCD > 0) continue;
+    const q = P.pl[1 - p.i], f = FACE[p.dir], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy);
+    p.shoveT = 0.2;
+    if (d <= 14 && (d < 1 || (dx * f[0] + dy * f[1]) / d > -0.3) && q.fall <= 0 && q.fallImm <= 0 && q.inv <= 0) {
+      const wasSealing = !!q.deploy;
+      p.pushCD = 2; P.stats.bumps++; makeFall(q, p.x, p.y, p.i);
+      if (wasSealing) award(p.i, 2, 'SHOVE', L.ox + q.x, L.oy + q.y - 34);
+    } else { p.pushCD = 0.6; SFX.whoosh(); }
   }
 
   // windows: unfolding, decay, failure
@@ -1648,9 +1776,20 @@ function drawPlay() {
       ctx.fillStyle = PCOL[p.i];
       ctx.fillRect(fx - 4, fy - 2, 9, 1); ctx.fillRect(fx - 4, fy + 2, 9, 1); ctx.fillRect(fx - 6, fy - 1, 1, 3); ctx.fillRect(fx + 6, fy - 1, 1, 3);
     }
-    drawChar(ctx, p.ch, fx, fy, p.dir, frame, 1, p.mask > 0);
-    if (p.stagger > 0) {                                    // dazed: little stars circle the head
-      for (let n = 0; n < 3; n++) { const a = G.t * 14 + n * 2.1; ctx.fillStyle = '#ffe066'; ctx.fillRect(fx + Math.round(Math.cos(a) * 5) - 1, fy - 19 + Math.round(Math.sin(a) * 2), 2, 2); }
+    const flat = p.fall > 0.3;
+    if (flat) {                                             // knocked flat: lying on the floor, head toward the way they fell
+      const el = 1.35 - p.fall, hop = el < 0.2 ? Math.round(Math.sin(el / 0.2 * Math.PI) * 6) : 0;
+      ctx.save(); ctx.translate(fx - 7 * p.fdx, fy - 3 - hop); ctx.rotate(p.fdx * Math.PI / 2);
+      drawChar(ctx, p.ch, 0, 0, 'd', 0, 1, p.mask > 0);
+      ctx.restore();
+    } else drawChar(ctx, p.ch, fx, fy, p.dir, frame, 1, p.mask > 0);
+    if (p.shoveT > 0) {                                     // the shove: an arm and a few speed lines
+      const f = FACE[p.dir], k = 1 - p.shoveT / 0.2;
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(fx + Math.round(f[0] * (5 + k * 4)) - 1, fy - 6 + Math.round(f[1] * (3 + k * 3)), 3, 2);
+      ctx.fillRect(fx + Math.round(f[0] * (10 + k * 4)), fy - 8 + Math.round(f[1] * 6), 2, 1); ctx.fillRect(fx + Math.round(f[0] * (10 + k * 4)), fy - 4 + Math.round(f[1] * 6), 2, 1);
+    }
+    if (p.stagger > 0 || flat) {                            // dazed: little stars circle the head
+      for (let n = 0; n < 3; n++) { const a = G.t * 14 + n * 2.1; ctx.fillStyle = '#ffe066'; ctx.fillRect(fx + Math.round(Math.cos(a) * 5) - 1, fy - (flat ? 9 : 19) + Math.round(Math.sin(a) * 2), 2, 2); }
     }
     if (P.np === 2) {                                       // and a tag with a pointer over the head
       const tx = fx + (p.i ? 8 : -8);                       // tags lean apart so they never cover each other
@@ -1920,17 +2059,24 @@ function drawControls() {
       text(TOUCH ? (i === 0 ? 'P1 LEFT THUMB' : 'P2 RIGHT THUMB') : 'PLAYER ' + (i + 1), cx, by + 2, '#14121f', 1, 'c');
       drawChar(ctx, ch, cx, by + 52, 'd', 0, 2);
       text(ch.name, cx, by + 57, '#f1ead7', 1, 'c');
-      if (TOUCH) { stickIcon(cx, by + 88, col); text('SLIDE', cx, by + 108, '#f1ead7', 1, 'c'); disc(cx - 22, by + 120, 7, col); text('!', cx - 22, by + 117, '#14121f', 1, 'c'); text('CALL', cx - 10, by + 118, '#f1ead7', 1, 'l'); }
-      else {
+      const pu = G.ff;
+      if (TOUCH) {
+        stickIcon(cx, by + 88, col); text('SLIDE', cx, by + 108, '#f1ead7', 1, 'c');
+        const cx0 = pu ? cx - 42 : cx - 22;
+        disc(cx0, by + 120, 7, col); text('!', cx0, by + 117, '#14121f', 1, 'c'); text('CALL', cx0 + 12, by + 118, '#f1ead7', 1, 'l');
+        if (pu) { disc(cx + 8, by + 120, 7, col); text('P', cx + 8, by + 117, '#14121f', 1, 'c'); text('PUSH', cx + 20, by + 118, '#f1ead7', 1, 'l'); }
+      } else {
         cluster(cx, by + 70, i === 0 ? 'wasd' : 'arrows', col, i === 0 ? dn : [false, false, false, false]);
         text('MOVE', cx, by + 106, '#f1ead7', 1, 'c');
-        keycap(cx - 30, by + 114, i === 0 ? 'Q' : '/', col, false); text('CALL', cx - 10, by + 118, '#f1ead7', 1, 'l');
+        const k0 = pu ? cx - 50 : cx - 30;
+        keycap(k0, by + 114, i === 0 ? 'Q' : '/', col, false); text('CALL', k0 + 20, by + 118, '#f1ead7', 1, 'l');
+        if (pu) { keycap(cx + 2, by + 114, i === 0 ? 'E' : '.', col, false); text('PUSH', cx + 22, by + 118, '#f1ead7', 1, 'l'); }
       }
     }
     drawDemo(152, 56, 80, 84, CHARS[G.ch[0]]);
   }
   button('BACK', 36, 176, 60, 14, () => { SFX.ui(); go('levels'); });
-  if (two) text(G.ff ? 'MOST POINTS WINS. FRIENDLY FIRE ON.' : 'MOST POINTS WINS. FRIENDLY FIRE OFF.', 192, 194, '#9a93b3', 1, 'c');
+  if (two) text(G.ff ? 'FRIENDLY FIRE ON: PUSH YOUR PARTNER OFF THEIR WINDOW.' : 'MOST POINTS WINS. FRIENDLY FIRE OFF.', 192, 194, '#9a93b3', 1, 'c');
   button('START', 136, 176, 112, 14, () => { SFX.ok(); startRun(); });
   if (Math.floor(G.t * 2) % 2 === 0) text(kb('PRESS ENTER'), 192, 214, '#ffffff', 1, 'c', 'plate');
 }
@@ -2051,7 +2197,7 @@ function drawCountdown() {
   else if (P.risk) text('HAZY LIFT', 192, 72, '#f2b134', 2, 'c', 'plate');
   text(lab, 192, 98, '#f2b134', 6, 'c', '#000');
   text('ALL WINDOWS ARE OPEN', 192, 156, '#ff8a7a', 1, 'c', 'plate');
-  if (P.np === 2) text(P.rival ? 'FRIENDLY FIRE IS ON. MOST POINTS WINS.' : 'MOST POINTS WINS THE ROUND.', 192, 164, '#f1ead7', 1, 'c', 'plate');
+  if (P.np === 2) text(P.rival ? 'FRIENDLY FIRE: PUSH YOUR PARTNER OFF THEIR WINDOW.' : 'MOST POINTS WINS THE ROUND.', 192, 164, '#f1ead7', 1, 'c', 'plate');
   if (P.np === 2) {                                         // who has which keys
     [['P1  W A S D', 96, 0], ['P2  ARROWS', 288, 1]].forEach(([lab, cx, i]) => {
       const w = textW(lab) + 10;
@@ -2059,6 +2205,7 @@ function drawCountdown() {
       ctx.fillStyle = '#14121f'; ctx.fillRect(cx - w / 2, 180, w, 11);
       text(lab, cx, 183, PCOL[i], 1, 'c');
     });
+    (P.rival ? ['Q CALL   E PUSH', '/ CALL   . PUSH'] : ['Q CALL', '/ CALL']).forEach((l, i) => text(l, i ? 288 : 96, 198, PCOL[i], 1, 'c', 'plate'));
   }
 }
 
@@ -2073,8 +2220,10 @@ function drawPause() {
 }
 
 function drawEnd() {
+  const run = G.run, r = run.result, lost = !r.win;
+  ctx.save();
+  if (lost && G.t < 0.45) ctx.translate(Math.round(rand(-1, 1) * (0.45 - G.t) * 16), Math.round(rand(-1, 1) * (0.45 - G.t) * 16));
   drawPlay();
-  const run = G.run, r = run.result;
   ctx.fillStyle = DARK_DITH[11]; ctx.fillRect(0, 0, VW, VH);
   panel(60, 14, 264, 204, '#1d1b2e', r.win ? '#5be37d' : '#e0453a');
   text(r.win ? 'HAZE SURVIVED!' : 'HOSPITALISED', 192, 22, r.win ? '#9bf0b0' : '#ff8a7a', 2, 'c');
@@ -2102,6 +2251,125 @@ function drawEnd() {
   button('AGAIN (R)', 76, 188, 76, 14, () => { SFX.ui(); startRun(); });
   button('WORKSHOP', 156, 188, 76, 14, () => { SFX.ui(); G.shop = 0; go('shop'); });
   button('MENU', 236, 188, 76, 14, () => { SFX.ui(); go('levels'); });
+  ctx.restore();
+  if (lost) {                                               // the arcade classic
+    const n = 9 - Math.floor(G.t);
+    if (n >= 0) text('CONTINUE? ' + n, 192, 222, n <= 3 ? '#ff3b2a' : '#f2b134', 2, 'c', 'plate');
+    else text('GAME OVER', 192, 222, '#ff3b2a', 2, 'c', 'plate');
+    if (G.t < 0.25) { ctx.globalAlpha = 1 - G.t / 0.25; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
+  }
+}
+
+/* ---------- the death cutscene: K.O., HAZALITY, then the ambulance ---------- */
+const DEATH_LEN = 7.8;
+const COUGHS = [0.26, 0.5, 0.72, 1.35, 1.55, 1.75, 1.95, 3.15], CWORDS = ['KHAK!', 'HACK!', 'COUGH!', 'GAAH!', 'KOFF!', 'HUACK!', 'HRRK!', 'BLEURGH!'];
+function easeOut(x) { return 1 - (1 - x) * (1 - x); }
+function startDeath() {
+  const R = G.run.result, fam = R.reason === 'FAM', vi = R.reason === 'P2' ? 1 : 0;
+  G.dth = { vi, fam, fired: {}, puffs: [], words: [], sir: 0, sn: 0, kick: 0 };
+  if (!fam) { const v = P.pl[vi]; v.fall = 99; v.fdx = 1; v.stagger = 0; v.inv = 0; v.deploy = null; }
+  P.shake = 0; killBus(); stopSpeech();
+  go('death');
+}
+function endDeath() { killBus(); stopSpeech(); G.cn = -1; SFX.lose(); go('end'); }
+function updateDeath(dt) {
+  const D = G.dth, t = G.t;
+  const once = (k, at, fn) => { if (t >= at && !D.fired[k]) { D.fired[k] = 1; fn(); } };
+  once('cough', 0.1, () => SFX.coughFit());
+  COUGHS.forEach((c, i) => once('c' + i, 0.12 + c, () => {
+    const my = t < 1.6 ? 118 : 104;
+    for (let n = 0; n < 16; n++) D.puffs.push({ x: 192 + rand(-6, 6), y: my + rand(-4, 4), vx: rand(-100, 100), vy: rand(-120, -20), life: rand(0.6, 1.2), max: 1.2, sz: 2 + (n % 3), col: ['#d9b24a', '#c9a227', '#8a6a1a', '#e8d58a'][n % 4] });
+    D.words.push({ txt: CWORDS[i], x: 192 + rand(-80, 80), y: rand(70, 130), life: 0.8, sc: i === 7 ? 4 : 2 + (i % 2), col: i % 2 ? '#ffe066' : '#ff8a7a' });
+    D.kick = 0.18;
+  }));
+  once('growl', 1.75, () => SFX.growl());
+  once('speak', 1.95, () => speak('Hazality', 0, 0.45));
+  if (t >= 4.4) { D.sir -= dt; if (D.sir <= 0) { D.sn ^= 1; SFX.siren2(D.sn); D.sir = 0.4; } }
+  D.kick = Math.max(0, D.kick - dt);
+  for (const p of D.puffs) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt; p.life -= dt; }
+  D.puffs = D.puffs.filter(p => p.life > 0);
+  for (const w of D.words) w.life -= dt;
+  D.words = D.words.filter(w => w.life > 0);
+  if ((t > 0.8 && (confirmKey() || pressed.has('retry'))) || t >= DEATH_LEN) endDeath();
+}
+// the one who collapsed (or the sleeper, if the family member was the one who gave out), drawn big
+function drawVictim(x, y, s, lying, sq) {
+  const D = G.dth;
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(s, s * sq);
+  if (D.fam) {
+    const b = P.L.family.bed;
+    ctx.fillStyle = '#14121f'; ctx.fillRect(-10, -8, 20, 16); ctx.fillStyle = '#e9e4f2'; ctx.fillRect(-9, -7, 18, 14); ctx.fillStyle = '#b9b2d6'; ctx.fillRect(-9, 1, 18, 6);
+    ctx.translate(-8, -7); drawSleeper(-b[0] * T, -b[1] * T, 0);
+  } else {
+    if (lying) { ctx.translate(-7, 0); ctx.rotate(Math.PI / 2); }
+    drawChar(ctx, CHARS[G.ch[D.vi]], 0, 0, 'd', 0, 1, false);
+  }
+  ctx.restore();
+}
+function drawAmbulance(x, y) {
+  ctx.fillStyle = '#14121f'; ctx.fillRect(x - 1, y - 1, 74, 31);
+  ctx.fillStyle = '#f1ead7'; ctx.fillRect(x, y, 72, 28);
+  ctx.fillStyle = '#e0453a'; ctx.fillRect(x, y + 17, 72, 4);
+  ctx.fillStyle = '#c9c3dc'; ctx.fillRect(x + 54, y + 4, 18, 24);
+  ctx.fillStyle = '#7fc8f0'; ctx.fillRect(x + 59, y + 7, 11, 9);
+  ctx.fillStyle = '#e0453a'; ctx.fillRect(x + 22, y + 3, 4, 12); ctx.fillRect(x + 18, y + 7, 12, 4);
+  const on = Math.floor(G.t * 6) % 2;
+  ctx.fillStyle = on ? '#ff2a2a' : '#2a6bff'; ctx.fillRect(x + 20, y - 4, 14, 3);
+  ctx.fillStyle = on ? '#2a6bff' : '#ff2a2a'; ctx.fillRect(x + 36, y - 4, 14, 3);
+  [14, 58].forEach(wx => { disc(x + wx, y + 29, 6, '#14121f'); disc(x + wx, y + 29, 3, '#9a93b3'); });
+}
+function drawDeath() {
+  const D = G.dth, t = G.t, R = G.run.result, L = P.L, kick = D.kick;
+  const fx = D.fam ? L.ox + L.family.bed[0] * T + 9 : L.ox + P.pl[D.vi].x, fy = D.fam ? L.oy + L.family.bed[1] * T + 7 : L.oy + P.pl[D.vi].y - 4;
+  const why = D.fam ? FAM_LOSE[P.depth] : (G.np === 2 ? R.reason + ' COLLAPSED. TEAM DOWN.' : 'THE AIR GOT TO YOUR LUNGS.');
+  if (t < 1.6) {                                            // A: the camera slams in on the moment
+    const z = 1 + 1.6 * easeOut(clamp(t / 1.3, 0, 1)), sh = (kick > 0 || t < 0.5) ? 3 : 0;
+    ctx.save();
+    ctx.translate(VW / 2 + Math.round(rand(-sh, sh)), VH / 2 + Math.round(rand(-sh, sh))); ctx.scale(z, z); ctx.translate(-Math.round(fx), -Math.round(fy));
+    drawPlay();
+    ctx.restore();
+    ctx.globalAlpha = clamp(t / 1.2, 0, 0.5); ctx.fillStyle = '#b3141a'; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1;
+    if (t > 0.5) {
+      const tgt = D.fam ? 6 : 10, sc = Math.round(lerp(tgt * 2.5, tgt, clamp((t - 0.5) / 0.12, 0, 1)));
+      text(D.fam ? 'TOO LATE' : 'K.O.', 192, Math.round(120 - 3.5 * sc), '#ff3b2a', sc, 'c', '#000');
+    }
+  } else if (t < 4.4) {                                     // B: HAZALITY
+    ctx.fillStyle = '#0a0610'; ctx.fillRect(0, 0, VW, VH);
+    disc(192, 112, 78, '#2a0a12'); disc(192, 112, 60, '#4a0f18'); disc(192, 112, 42, '#6b1520');
+    ctx.fillStyle = HAZE_AIR[4]; ctx.fillRect(0, 0, VW, VH);
+    if (Math.floor(t * 8) % 4 === 0) {                      // lightning
+      ctx.fillStyle = '#ffffff'; let lx = rand(40, 340);
+      for (let y = 0; y < 150; y += 12) { lx += rand(-14, 14); ctx.fillRect(Math.round(lx), y, 2, 12); }
+    }
+    const bend = kick > 0;
+    drawVictim(192 + (bend ? Math.round(rand(-3, 3)) : 0), D.fam ? 150 : 178, D.fam ? 7 : 6, false, bend ? 0.88 : 1);
+    const n = clamp(Math.floor((t - 1.9) / 0.1), 0, 8);
+    if (n) text('HAZALITY'.slice(0, n), 72 + Math.round(rand(-1, 1)), 22 + Math.round(rand(-1, 1)), (n === 8 && t < 2.9 && Math.floor(t * 20) % 2) ? '#ffffff' : '#ff3b2a', 5, 'l', '#000');
+    if (t > 2.9) text(D.fam ? FAMN[P.depth] + ' COULD NOT BREATHE' : (G.np === 2 ? R.reason : 'YOU') + ' COULD NOT BREATHE', 192, 64, '#f1ead7', 1, 'c', 'plate');
+  } else {                                                  // C: the ambulance
+    const u = t - 4.4;
+    ctx.fillStyle = '#0d0b1a'; ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = '#1a1830'; ctx.fillRect(0, 50, VW, 112);
+    for (let y = 58; y < 150; y += 14) for (let x = 8; x < VW; x += 22) { ctx.fillStyle = ((x * 7 + y * 3) % 5 === 0) ? '#d9b24a' : '#2a2748'; ctx.fillRect(x, y, 10, 8); }
+    ctx.fillStyle = '#2a2740'; ctx.fillRect(0, 160, VW, 80); ctx.fillStyle = '#4a4668'; ctx.fillRect(0, 160, VW, 2);
+    ctx.fillStyle = HAZE_AIR[6]; ctx.fillRect(0, 0, VW, VH);
+    drawVictim(140, D.fam ? 190 : 188, D.fam ? 3 : 3, !D.fam, 1);
+    drawAmbulance(Math.round(lerp(-90, 214, easeOut(clamp(u / 1.1, 0, 1)))), 156);
+    ctx.globalAlpha = 0.2; ctx.fillStyle = Math.floor(t * 6) % 2 ? '#ff2a2a' : '#2a6bff'; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1;
+    if (u > 0.8) text('AMBULANCE ARRIVES', 192, 30, '#f1ead7', 2, 'c', 'plate');
+    if (u > 1.7) text(why, 192, 52, '#ff8a7a', 1, 'c', 'plate');
+    if (u > 2.3) text('FLOORS CLEARED ' + R.cleared + ' OF 3', 192, 64, '#c9c3dc', 1, 'c', 'plate');
+  }
+  for (const p of D.puffs) { ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x), Math.round(p.y), p.sz, p.sz); }
+  ctx.globalAlpha = 1;
+  if (t < 4.4) for (const w of D.words) text(w.txt, Math.round(w.x), Math.round(w.y - (0.8 - w.life) * 20), w.col, w.sc, 'c', '#000');
+  if (t < 0.3) { ctx.globalAlpha = 1 - t / 0.3; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
+  const bar = Math.round(18 * easeOut(clamp(t / 0.4, 0, 1)));
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, bar); ctx.fillRect(0, VH - bar, VW, bar);
+  if (t > 0.8 && Math.floor(t * 2) % 2) text(kb('ENTER OR TAP TO SKIP'), 378, 228, '#9a93b3', 1, 'r');
+  const fade = clamp((t - (DEATH_LEN - 0.5)) / 0.5, 0, 1);
+  if (fade > 0) { ctx.globalAlpha = fade; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
+  hitArea(0, 0, VW, VH, () => { if (G.t > 0.8) endDeath(); });
 }
 
 /* ---------- workshop: permanent upgrades bought with shards ---------- */
@@ -2175,13 +2443,17 @@ function update(dt) {
       break;
     }
     case 'play': updatePlay(dt); break;
+    case 'death': updateDeath(dt); break;
     case 'pause':
       if (pressed.has('pause') || pressed.has('esc')) go('play');
       else if (pressed.has('retry')) startRun();
       break;
-    case 'end':
+    case 'end': {
+      const cn = Math.floor(G.t);
+      if (!G.run.result.win && cn !== G.cn && cn <= 9) { G.cn = cn; SFX.beep(); }
       if (pressed.has('retry')) startRun(); else if (confirmKey() && G.t > 0.6) go('levels');
       break;
+    }
   }
   if (pressed.has('mute')) toggleMute();
   pressed.clear();
@@ -2201,14 +2473,15 @@ function render() {
     case 'shop': drawShop(); break;
     case 'countdown': drawCountdown(); break;
     case 'play': drawPlay(); break;
+    case 'death': drawDeath(); break;
     case 'pause': drawPause(); break;
     case 'end': drawEnd(); break;
   }
   const hint = document.getElementById('hint');
   const playing = G.state === 'play' || G.state === 'countdown';
-  const uiKey = (playing ? 'play' : 'menu') + G.np;
+  const uiKey = (playing ? 'play' : 'menu') + G.np + (G.ff ? 'f' : 'n');
   if (uiKey !== ui.key) {                                    // touch controls follow what is on screen
-    ui.key = uiKey; document.body.dataset.ui = playing ? 'play' : 'menu'; document.body.dataset.np = G.np;
+    ui.key = uiKey; document.body.dataset.ui = playing ? 'play' : 'menu'; document.body.dataset.np = G.np; document.body.dataset.ff = G.ff ? '1' : '0';
     if (!playing) sticks.forEach(stickRelease);
     layoutTouch();
   }
@@ -2238,9 +2511,11 @@ function mapPlay(code) {
   switch (code) {
     case 'KeyA': return [0, 'left']; case 'KeyD': return [0, 'right']; case 'KeyW': return [0, 'up']; case 'KeyS': return [0, 'down'];
     case 'KeyQ': return [0, 'ping'];
+    case 'KeyE': return two ? [0, 'push'] : null;
     case 'ArrowLeft': return [two ? 1 : 0, 'left']; case 'ArrowRight': return [two ? 1 : 0, 'right'];
     case 'ArrowUp': return [two ? 1 : 0, 'up']; case 'ArrowDown': return [two ? 1 : 0, 'down'];
-    case 'Slash': case 'Period': return two ? [1, 'ping'] : null;
+    case 'Slash': return two ? [1, 'ping'] : null;
+    case 'Period': return two ? [1, 'push'] : null;
   }
   return null;
 }
@@ -2250,9 +2525,9 @@ window.addEventListener('keydown', e => {
   e.preventDefault();
   audioInit();
   if (a && !e.repeat) pressed.add(a);
-  if (m) { if (m[1] === 'ping') { if (!e.repeat) pingEdge[m[0]] = true; } else inp[m[0]][m[1]] = true; }
+  if (m) { if (m[1] === 'ping') { if (!e.repeat) pingEdge[m[0]] = true; } else if (m[1] === 'push') { if (!e.repeat) pushEdge[m[0]] = true; } else inp[m[0]][m[1]] = true; }
 });
-window.addEventListener('keyup', e => { const m = mapPlay(e.code); if (m && m[1] !== 'ping') inp[m[0]][m[1]] = false; });
+window.addEventListener('keyup', e => { const m = mapPlay(e.code); if (m && m[1] !== 'ping' && m[1] !== 'push') inp[m[0]][m[1]] = false; });
 function clearInputs() { for (const k of inp) for (const a in k) k[a] = false; }
 window.addEventListener('blur', () => { clearInputs(); if (G.state === 'play') go('pause'); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'play') go('pause'); });
@@ -2317,14 +2592,18 @@ function layoutTouch() {
     s.rest = [left + width / 2, top + (H - top) * 0.62];
     if (s.id === null) { stickPlace(s, s.rest[0], s.rest[1]); s.base.classList.toggle('ghost', document.body.dataset.ui === 'play'); }
   });
-  document.querySelectorAll('#touch .call').forEach(b => { b.style.top = (mode === 'land' ? Math.round(H * 0.3) : top + 8) + 'px'; });
+  const vm = Math.min(W, H) / 100, callTop = mode === 'land' ? Math.round(H * 0.3) : top + 8;
+  document.querySelectorAll('#touch .call').forEach(b => { b.style.top = callTop + 'px'; });
+  document.querySelectorAll('#touch .push').forEach(b => { b.style.top = Math.round(callTop + 17 * vm + 1.5 * vm) + 'px'; });
   const pz = document.querySelector('#touch .pause'); if (mode === 'port') pz.style.top = (top + 8) + 'px';
 }
 document.querySelectorAll('#touch [data-tap]').forEach(b => {
   const t = b.dataset.tap;
   b.addEventListener('pointerdown', e => {
     e.preventDefault(); audioInit(); b.classList.add('on');
-    if (t === 'ping0' || t === 'ping1') { if (G.state === 'play') pingEdge[+t.slice(4)] = true; } else pressed.add(t);
+    if (t === 'ping0' || t === 'ping1') { if (G.state === 'play') pingEdge[+t.slice(4)] = true; }
+    else if (t === 'push0' || t === 'push1') { if (G.state === 'play') pushEdge[+t.slice(4)] = true; }
+    else pressed.add(t);
   });
   const off = () => b.classList.remove('on');
   b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
@@ -2366,7 +2645,7 @@ window.addEventListener('resize', fit); window.addEventListener('orientationchan
 fit();
 
 /* test and debug hooks */
-window.__sth = { G, inp, pingEdge, pressed, update, startRun, startRound, pickCard, rerollCards, takeDoor, clearNext, DIFFS, LAYOUTS, BOONS, BOON_BY, CHARS, meta, get P() { return P; }, psiAt, render };
+window.__sth = { G, inp, pingEdge, pushEdge, pressed, startDeath, endDeath, update, startRun, startRound, pickCard, rerollCards, takeDoor, clearNext, DIFFS, LAYOUTS, BOONS, BOON_BY, CHARS, meta, get P() { return P; }, psiAt, render };
 
 requestAnimationFrame(frame);
 })();
