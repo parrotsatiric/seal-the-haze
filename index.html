@@ -83,42 +83,46 @@ canvas#game {
 #bar button:hover { border-color: var(--accent); }
 #bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* on-screen controls: a thumb pad on the left, OK and pause on the right */
-#touch { --k: 54px; display: none; user-select: none; -webkit-user-select: none; }
-#touch.show { display: flex; }
-.dpad {
-  position: relative; flex: none;
-  width: calc(var(--k) * 3); height: calc(var(--k) * 3);
-  touch-action: none;
+/* touch controls: a floating thumb stick for each player (it appears wherever the thumb lands), plus a few big buttons */
+#touch { display: none; position: fixed; inset: 0; z-index: 5; pointer-events: none; user-select: none; -webkit-user-select: none; }
+#touch.show { display: block; }
+#touch .zone { position: absolute; touch-action: none; pointer-events: none; }
+body[data-ui="play"] #touch .zone { pointer-events: auto; }
+#touch .stick {
+  position: absolute; border-radius: 50%; box-sizing: border-box; pointer-events: none; opacity: 0;
+  border: 4px solid color-mix(in srgb, var(--c, #f1ead7) 70%, transparent);
+  background: radial-gradient(circle, rgba(20, 18, 31, 0.55) 0%, rgba(20, 18, 31, 0.35) 70%);
+  box-shadow: 0 0 0 2px rgba(20, 18, 31, 0.6);
 }
-.dpad i {
-  position: absolute; width: var(--k); height: var(--k);
-  display: flex; align-items: center; justify-content: center;
-  font-style: normal; font-size: calc(var(--k) * 0.34);
-  color: var(--ink); background: rgba(29, 27, 46, 0.82);
-  border: 2px solid var(--line); box-sizing: border-box;
-  pointer-events: none;
+#touch .stick.ghost { opacity: 0.24; }
+#touch .stick.on { opacity: 0.95; }
+#touch .stick i {
+  position: absolute; left: 50%; top: 50%; width: 44%; height: 44%; margin: -22% 0 0 -22%;
+  border-radius: 50%; background: var(--c, #f1ead7); border: 4px solid rgba(20, 18, 31, 0.75); box-sizing: border-box;
 }
-.dpad i.on { background: var(--accent); color: #14121f; border-color: var(--accent); }
-.dpad .u { left: var(--k); top: 0; } .dpad .d { left: var(--k); top: calc(var(--k) * 2); }
-.dpad .l { left: 0; top: var(--k); } .dpad .r { left: calc(var(--k) * 2); top: var(--k); }
-.dpad .c { left: var(--k); top: var(--k); background: rgba(20, 18, 31, 0.6); }
-.side { display: flex; flex-direction: column; gap: calc(var(--k) * 0.3); align-items: flex-end; justify-content: flex-end; }
-.side button {
-  font-family: var(--font-ui); font-size: calc(var(--k) * 0.28); color: var(--ink);
-  width: calc(var(--k) * 1.5); height: calc(var(--k) * 1.1);
-  background: rgba(29, 27, 46, 0.82); border: 2px solid var(--line); touch-action: none;
+#touch .tb {
+  position: absolute; pointer-events: auto; touch-action: none;
+  font-family: var(--font-ui); color: var(--ink);
+  background: rgba(29, 27, 46, 0.88); border: 3px solid var(--line); box-sizing: border-box;
 }
-.side button.on { background: var(--accent); color: #14121f; border-color: var(--accent); }
+#touch .tb.on { background: var(--accent); color: #14121f; border-color: var(--accent); }
+#touch .pause { width: 13vmin; height: 13vmin; font-size: 4.4vmin; left: max(2vmin, env(safe-area-inset-left, 0px)); top: 2vmin; }
+#touch .ok { width: 30vmin; height: 16vmin; font-size: 5.5vmin; right: max(3vmin, env(safe-area-inset-right, 0px)); bottom: 4vmin; }
+#touch .call { width: 17vmin; height: 17vmin; border-radius: 50%; font-size: 8vmin; }
+#touch .c0 { left: max(3vmin, env(safe-area-inset-left, 0px)); border-color: #f2b134; }
+#touch .c1 { right: max(3vmin, env(safe-area-inset-right, 0px)); border-color: #4fe3ff; }
+body[data-ui="menu"] #touch .pause, body[data-ui="menu"] #touch .call { display: none; }
+body[data-ui="play"] #touch .ok { display: none; }
+body:not([data-np="2"]) #touch .call { display: none; }
 
-/* phone held upright: screen on top, controls under it */
-body[data-mode="port"] #touch { width: 100%; justify-content: space-between; align-items: flex-end; padding: 0 4px; box-sizing: border-box; }
-/* phone held sideways: the screen fills the height, controls float in the side margins */
+/* phone held upright: screen on top, thumb zones below it */
+body[data-mode="port"] #shell { justify-content: flex-start; }
+body[data-mode="port"] #bar { position: relative; z-index: 6; }
+body[data-mode="port"] #touch .pause { left: 50%; margin-left: -6.5vmin; top: auto; }
+/* phone held sideways: the screen fills the height, thumbs rest in the side margins */
 body[data-mode="land"] { padding: 4px 0; }
 body[data-mode="land"] #shell { gap: 0; }
-body[data-mode="land"] #touch { position: fixed; left: 0; right: 0; bottom: 0; justify-content: space-between; align-items: flex-end; pointer-events: none; padding: 0 max(12px, env(safe-area-inset-right, 0px)) 12px max(12px, env(safe-area-inset-left, 0px)); }
-body[data-mode="land"] #touch .dpad, body[data-mode="land"] #touch .side { pointer-events: auto; }
-body[data-mode="land"] #bar { position: fixed; top: 6px; right: max(8px, env(safe-area-inset-right, 0px)); flex-direction: column; gap: 6px; }
+body[data-mode="land"] #bar { position: fixed; top: 6px; right: max(8px, env(safe-area-inset-right, 0px)); flex-direction: column; gap: 6px; z-index: 6; }
 body[data-mode="land"] #bar p { display: none; }
 body[data-mode="land"] #bar button { font-size: 7px; padding: 5px 7px; opacity: 0.85; }
 @media (prefers-reduced-motion: reduce) { canvas#game { transition: none; } }
@@ -130,13 +134,12 @@ body[data-mode="land"] #bar button { font-size: 7px; padding: 5px 7px; opacity: 
 <main id="shell">
   <canvas id="game" width="384" height="240" tabindex="0" aria-label="Seal the Haze game screen"></canvas>
   <div id="touch">
-    <div class="dpad" id="dpad" aria-label="Move">
-      <i class="u">&#9650;</i><i class="l">&#9664;</i><i class="c"></i><i class="r">&#9654;</i><i class="d">&#9660;</i>
-    </div>
-    <div class="side">
-      <button type="button" data-tap="pause" aria-label="Pause">II</button>
-      <button type="button" data-tap="ok" aria-label="OK">OK</button>
-    </div>
+    <div class="zone" id="zone0"></div>
+    <div class="zone" id="zone1"></div>
+    <button class="tb call c0" type="button" data-tap="ping0" aria-label="Player 1 call for help">!</button>
+    <button class="tb call c1" type="button" data-tap="ping1" aria-label="Player 2 call for help">!</button>
+    <button class="tb pause" type="button" data-tap="pause" aria-label="Pause">II</button>
+    <button class="tb ok" type="button" data-tap="ok" aria-label="OK">OK</button>
   </div>
   <div id="bar">
     <p id="hint">ARROWS + ENTER, OR CLICK / TAP.</p>
@@ -268,6 +271,8 @@ const SFX = {
   ping: () => { tone(1200, 0.08); tone(1600, 0.1, 'square', 0.05, 0, 0.09); },
   siren: () => tone(600, 0.35, 'sawtooth', 0.04, 350),
   crack: () => { noise(0.1, 0.06); tone(220, 0.12, 'square', 0.04, -120); },
+  bump: () => { noise(0.08, 0.06); tone(150, 0.1, 'square', 0.06, -60); },
+  snap: () => { noise(0.12, 0.07); tone(900, 0.06, 'square', 0.05, -500); tone(200, 0.12, 'sawtooth', 0.05, -100, 0.05); },
   revive: () => [392, 523, 659, 784].forEach((f, i) => tone(f, 0.14, 'triangle', 0.06, 0, i * 0.07))
 };
 
@@ -787,13 +792,13 @@ const specks = Array.from({ length: 40 }, () => ({ x: Math.random() * VW, y: Mat
    ===================================================================== */
 const STEP = 1 / 60;
 const PCOL = ['#f2b134', '#4fe3ff'];            // player colours: P1 amber, P2 cyan
-const G = { state: 'title', t: 0, np: 1, ch: [0, 1], pick: 0, lv: 1, heat: 0, tsel: 0, run: null, pk: null, door: null, shop: 0 };
+const G = { state: 'title', t: 0, np: 1, ch: [0, 1], pick: 0, lv: 1, heat: 0, ff: true, tsel: 0, run: null, pk: null, door: null, shop: 0 };
 let P = null;                                    // everything about the current round
-const mkInput = () => ({ left: false, right: false, up: false, down: false });
+const mkInput = () => ({ left: false, right: false, up: false, down: false, ax: 0, ay: 0 });   // ax, ay: thumb stick (-1 to 1)
 const inp = [mkInput(), mkInput()];              // one input state per player
 const pingEdge = [false, false];
 const pressed = new Set();                       // one-frame key presses, used by menus
-const ui = { cur: [], next: [], mx: -1, my: -1 };
+const ui = { cur: [], next: [], mx: -1, my: -1, key: '' };
 let best = {};
 try { best = JSON.parse(localStorage.getItem('sth-best2') || '{}') || {}; } catch (e) { best = {}; }
 function saveBest(k, v) { best[k] = v; try { localStorage.setItem('sth-best2', JSON.stringify(best)); } catch (e) { /* storage may be blocked */ } }
@@ -877,7 +882,7 @@ function rollCards(who) {
   const run = G.run, after = G.pk.after, risk = after >= 0 ? run.risk[after] : 0, fx = metaFx();
   const ownedIds = new Set(run.boons[who].map(b => b.id));
   const ownedPat = new Set(run.boons[who].filter(b => !BOON_BY[b.id].duo).map(b => BOON_BY[b.id].pat));
-  const bonus = fx.luck + (risk ? 0.3 : 0) + Math.max(0, after) * 0.04;
+  const bonus = fx.luck + (risk ? 0.3 : 0) + Math.max(0, after) * 0.04 + (run.boost ? run.boost[who] : 0);
   const pEpic = 0.05 + bonus * 0.35, pRare = 0.22 + bonus * 0.65;
   const rollRar = () => { const r = Math.random(); return r < pEpic ? 2 : r < pEpic + pRare ? 1 : 0; };
   const cards = [];
@@ -934,7 +939,7 @@ function shortName(n) { return n.replace('MASTER BEDROOM', 'MASTER').replace('BE
 function startRun() {
   const fx = metaFx(), np = G.np;
   const run = { depth: 0, order: shuffle([0, 1, 2]), floors: FLOOR_RANGES.map(([a, b]) => irand(a, b)), boons: [[], []], hp: [], max: [], sw: [[], []],
-    rerolls: fx.rerolls, risk: [0, 0, 0], began: false, cleared: 0, seals: 0, fails: 0, result: null };
+    rerolls: fx.rerolls, risk: [0, 0, 0], score: [0, 0], boost: [0, 0], began: false, cleared: 0, seals: 0, fails: 0, result: null };
   for (let i = 0; i < np; i++) { const ch = CHARS[G.ch[i]]; run.max[i] = ch.hp + fx.lung; run.hp[i] = run.max[i]; if (fx.wind) run.sw[i].push(0.3); }
   G.run = run; P = null;
   beginPick(-1);
@@ -947,6 +952,7 @@ function beginPick(after) {
 function pickCard(i) {
   const pk = G.pk, who = pk.who;
   applyBoon(who, pk.cards[i]); SFX.pick();
+  G.run.boost[who] = 0;                                  // a round winner's better odds are used up by this pick
   if (who + 1 < G.np) { pk.who = who + 1; pk.cards = rollCards(pk.who); pk.sel = 0; G.t = 0; pressed.clear(); }
   else if (pk.after < 0) { G.run.began = true; startRound(); }
   else beginDoor();
@@ -978,18 +984,18 @@ function startRound() {
     gust: (np === 2 ? 0.75 : 1) * (1 - 0.05 * heat) * (risk ? 0.75 : 1) * sc.gust };
   const par = { duration: Math.round(D.dur * sc.dur), psi0: D.psi0 * sc.psi, psiPeak: D.psiPeak * sc.psi, sealLife: D.sealLife, gust: D.gust, crack: D.crack, surge: D.surge * (boss ? 1.25 : 1) };
   const { pm, tm } = calcStats();
-  for (const w of L.windows) { w.sealed = false; w.life = 0; w.maxLife = par.sealLife; w.progress = 0; w.flash = 0; w.failFlash = 0; w.crack = false; w.holders = 0; }
+  for (const w of L.windows) { w.sealed = false; w.life = 0; w.maxLife = par.sealLife; w.progress = 0; w.flash = 0; w.failFlash = 0; w.crack = false; w.holders = 0; w.contrib = [0, 0]; }
   for (const r of L.rooms) r.h = 0;
   const pl = [];
   for (let i = 0; i < np; i++) {
     const ch = CHARS[G.ch[i]];
-    pl.push({ i, ch, m: pm[i], x: L.spawnPx.x + i * 12, y: L.spawnPx.y, dir: 'd', anim: 0, moving: false, hp: run.hp[i], maxHp: run.max[i], mask: 0, hurt: 0, coughT: 0, deploy: null, nw: null, can: false, rushT: 0, inv: 0 });
+    pl.push({ i, ch, m: pm[i], x: L.spawnPx.x + i * 12, y: L.spawnPx.y, dir: 'd', anim: 0, moving: false, hp: run.hp[i], maxHp: run.max[i], mask: 0, hurt: 0, coughT: 0, deploy: null, nw: null, can: false, rushT: 0, inv: 0, stagger: 0, bumpCD: 0, vx: 0, vy: 0 });
   }
   const fam = { room: L.rooms.findIndex(r => r.id === L.family.room), hp: 100, max: 100, hurt: 0, name: FAMN[d], kind: d };
   P = { L, np, mp, par, tm, pl, fam, depth: d, floor: run.floors[d], boss, risk, t: 0, psi: Math.round(par.psi0), masks: [], maskTimer: 9, evTimer: rand(par.gust[0], par.gust[1]) * mp.gust,
     surgeT: rand(14, 20), warn: 0, surge: 0, surgeLen: boss ? 11 : 9, sirenT: 0, msgs: [], parts: [], pings: [], shake: 0, tickT: 0,
-    musicT: 0, musicStep: 0, countdown: 3.4, lastCount: 4, result: null, windMsg: false,
-    stats: { seals: 0, fails: 0, cracks: 0, surges: 0, peak: Math.round(par.psi0), exposed: [0, 0], winds: 0 } };
+    musicT: 0, musicStep: 0, countdown: 3.4, lastCount: 4, result: null, windMsg: false, score: [0, 0], pops: [], rival: np === 2 && G.ff,
+    stats: { seals: 0, fails: 0, cracks: 0, surges: 0, peak: Math.round(par.psi0), exposed: [0, 0], winds: 0, bumps: 0, snaps: 0 } };
   go('countdown');
 }
 
@@ -999,18 +1005,67 @@ function burst(x, y, col, n = 10, sp = 40) {
 }
 // time one player needs to fully unfold (or reinforce) a window on their own
 function baseTime(w) { return (0.6 + 0.22 * w.area) * (w.sealed ? REINFORCE_MULT : 1); }
+// one player's own rate on a window
+function holderRate(w, p) {
+  const bt = (0.6 + 0.22 * w.area) * (w.sealed ? REINFORCE_MULT * (1 - p.m.rein) : 1);
+  return (1 + p.m.seal) / (bt * p.ch.seal);
+}
 // how fast the window progresses given who is standing at it
 function sealRate(w, holders) {
   let r = 0;
-  for (const p of holders) {
-    const bt = (0.6 + 0.22 * w.area) * (w.sealed ? REINFORCE_MULT * (1 - p.m.rein) : 1);
-    r += (1 + p.m.seal) / (bt * p.ch.seal);
-  }
+  for (const p of holders) r += holderRate(w, p);
   if (P.np === 2) {
     if (w.area >= 10) r *= holders.length === 2 ? 1.3 : 0.35;   // sliding doors really need two people
     else if (holders.length === 2) r *= 1.15;                    // any window goes faster with a partner
   }
   return r;
+}
+
+/* ---------- two player rivalry: points, bumps and snapping frames ---------- */
+// points go to whoever did the work; a little popup floats up from where it happened
+function award(i, pts, label, x, y) {
+  if (P.np !== 2 || pts <= 0) return;
+  P.score[i] += pts;
+  const k = P.pops.filter(q => q.t > 0.5 && Math.abs(q.x - x) < 30 && Math.abs(q.y0 - y) < 12).length;
+  P.pops.push({ x, y: y - k * 9, y0: y, t: 1.2, txt: '+' + pts + (label ? ' ' + label : ''), col: PCOL[i] });
+}
+// push a player away from a point, stopping at walls
+function knock(p, fx, fy, dist) {
+  let dx = p.x - fx, dy = p.y - fy; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+  for (let s = 0; s < dist; s++) { if (!hitSolid(p.x + dx, p.y)) p.x += dx; if (!hitSolid(p.x, p.y + dy)) p.y += dy; }
+}
+// when a window finishes: split the points by who did how much of the work
+function scoreSeal(w, holders, wasSealed, wasCrack) {
+  const base = !wasSealed ? 10 : (wasCrack ? 8 : 4), label = !wasSealed ? '' : (wasCrack ? 'FIX' : 'REINFORCE');
+  const tot = (w.contrib[0] + w.contrib[1]) || 1, cx = P.L.ox + w.rect.x + w.rect.w / 2, cy = P.L.oy + w.rect.y - 4;
+  for (let i = 0; i < 2; i++) award(i, Math.round(base * w.contrib[i] / tot), label, cx, cy);
+  // answering your partner's call pays you both
+  for (const g of P.pings) {
+    if (g.t <= 0) continue;
+    const r = w.rect, dx = Math.max(r.x - g.x, 0, g.x - (r.x + r.w)), dy = Math.max(r.y - g.y, 0, g.y - (r.y + r.h));
+    if (Math.hypot(dx, dy) > 14) continue;
+    const helper = 1 - g.p;
+    if (holders.some(p => p.i === helper)) { award(helper, 6, 'ASSIST', cx, cy - 8); award(g.p, 3, 'GOOD CALL', cx, cy - 8); g.t = 0; }
+  }
+  w.contrib = [0, 0];
+}
+// friendly fire: the frame snaps open and clips anyone loitering beside it. A little damage, never a knockout.
+function snapFrame(w, holders) {
+  const r = w.rect, L = P.L;
+  for (const p of P.pl) {
+    if (holders.includes(p) || p.inv > 0) continue;
+    const dx = Math.max(r.x - p.x, 0, p.x - (r.x + r.w)), dy = Math.max(r.y - p.y, 0, p.y - (r.y + r.h));
+    if (Math.hypot(dx, dy) > 15) continue;
+    p.stagger = 0.7; p.deploy = null; p.hurt = 1;
+    knock(p, r.x + r.w / 2, r.y + r.h / 2, 10);
+    const floor = p.maxHp * 0.2;
+    if (p.hp > floor) p.hp = Math.max(floor, p.hp - p.maxHp * 0.04);
+    const who = holders[0] ? holders[0].i : 1 - p.i;
+    P.stats.snaps++; SFX.snap(); P.shake = Math.max(P.shake, 0.2);
+    burst(L.ox + p.x, L.oy + p.y - 8, '#ff6b5a', 10, 40);
+    P.pops.push({ x: L.ox + p.x, y: L.oy + p.y - 26, y0: L.oy + p.y - 26, t: 1.0, txt: 'SNAP!', col: '#ff8a7a' });
+    addMsg('P' + (who + 1) + ' FRAME SNAPPED P' + (p.i + 1) + '!', PCOL[who]);
+  }
 }
 function roomAtPx(x, y) { const L = P.L; return L.roomFull[Math.floor(y / T) * L.W + Math.floor(x / T)]; }
 function hitSolid(px, py) {
@@ -1042,6 +1097,12 @@ function finishRound(win, reason) {
   const pct = Math.round((lungs.reduce((a, b) => a + b, 0) + famPct) / (lungs.length + 1));
   P.result = { win, lungs, famPct, pct, reason };
   run.seals += P.stats.seals; run.fails += P.stats.fails;
+  if (P.np === 2) {
+    P.pl.forEach(p => { run.score[p.i] += P.score[p.i]; });
+    const [a, b] = P.score;
+    P.result.score = [a, b]; P.result.hero = a === b ? -1 : (a > b ? 0 : 1);
+    if (win && P.result.hero >= 0 && P.depth < 2) run.boost[P.result.hero] = 0.35;   // the round winner gets better odds on the next boon
+  }
   if (win) {
     run.cleared = P.depth + 1;
     P.pl.forEach(p => { run.hp[p.i] = clamp(p.hp, 1, p.maxHp); });
@@ -1092,24 +1153,42 @@ function updatePlay(dt) {
   // players: stand still next to a window and the frame unfolds by itself
   for (const p of P.pl) {
     const k = inp[p.i];
-    const ix = (k.right ? 1 : 0) - (k.left ? 1 : 0), iy = (k.down ? 1 : 0) - (k.up ? 1 : 0);
+    let ix = (k.right ? 1 : 0) - (k.left ? 1 : 0) + (k.ax || 0), iy = (k.down ? 1 : 0) - (k.up ? 1 : 0) + (k.ay || 0);
+    const il = Math.hypot(ix, iy); if (il > 1) { ix /= il; iy /= il; }
     const nw = nearestWindow(p, 10 + p.m.reach);
     p.nw = nw;
     p.can = !!(nw && (!nw.sealed || nw.life < nw.maxLife * 0.97));
     if (p.rushT > 0) p.rushT -= dt;
     if (p.inv > 0) p.inv -= dt;
+    if (p.bumpCD > 0) p.bumpCD -= dt;
+    const dazed = p.stagger > 0; if (dazed) p.stagger -= dt;
     // "moving" means actually moving: pushing into a wall or window counts as standing still
-    let moved = false;
+    let moved = false; p.vx = 0; p.vy = 0;
     if (ix !== 0 || iy !== 0) {
-      const len = Math.hypot(ix, iy), sp = 58 * p.ch.speed * (1 + p.m.spd + (p.rushT > 0 ? p.m.rush : 0)) * dt;
+      const len = Math.hypot(ix, iy), sp = 58 * p.ch.speed * (1 + p.m.spd + (p.rushT > 0 ? p.m.rush : 0)) * (dazed ? 0.4 : 1) * dt * Math.min(1, len);
       const dx = ix / len * sp, dy = iy / len * sp;
       if (!hitSolid(p.x + dx, p.y)) { p.x += dx; if (dx) moved = true; }
       if (!hitSolid(p.x, p.y + dy)) { p.y += dy; if (dy) moved = true; }
       p.dir = Math.abs(ix) >= Math.abs(iy) && ix !== 0 ? (ix > 0 ? 'r' : 'l') : (iy > 0 ? 'd' : 'u');
+      if (moved) { p.vx = ix / len; p.vy = iy / len; }
     }
     p.moving = moved;
-    p.deploy = !moved && p.can ? nw : null;
+    p.deploy = !moved && p.can && !dazed ? nw : null;
     if (moved) p.anim += dt * 9; else p.anim = 0;
+  }
+  // friendly fire, part one: walk into your partner and they stumble, losing their grip on the window
+  if (P.rival) {
+    const [a0, b0] = P.pl;
+    for (const [a, b] of [[a0, b0], [b0, a0]]) {
+      if (!a.moving || b.bumpCD > 0 || b.inv > 0) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+      if (d > 8 || d < 0.01 || (a.vx * dx + a.vy * dy) / d < 0.5) continue;   // only the one actually walking into the other
+      b.bumpCD = 2; b.stagger = 0.5; b.deploy = null; a.stagger = Math.max(a.stagger, 0.15);
+      knock(b, a.x, a.y, 7); knock(a, b.x, b.y, 2);
+      P.stats.bumps++; SFX.bump(); burst(L.ox + (a.x + b.x) / 2, L.oy + (a.y + b.y) / 2 - 6, '#ffffff', 8, 36);
+      P.pops.push({ x: L.ox + b.x, y: L.oy + b.y - 26, y0: L.oy + b.y - 26, t: 0.9, txt: 'BUMP!', col: PCOL[a.i] });
+      addMsg('P' + (a.i + 1) + ' BUMPED P' + (b.i + 1) + '!', PCOL[a.i]);
+    }
   }
 
   // windows: unfolding, decay, failure
@@ -1118,15 +1197,23 @@ function updatePlay(dt) {
     const holders = P.pl.filter(p => p.deploy === w);
     w.holders = holders.length;
     if (holders.length) {
-      w.progress += dt * sealRate(w, holders);
+      const rt = sealRate(w, holders), rates = holders.map(p => holderRate(w, p)), rsum = rates.reduce((a, b) => a + b, 0) || 1;
+      w.progress += dt * rt;
+      holders.forEach((p, n) => { w.contrib[p.i] += dt * rt * rates[n] / rsum; });
       if (P.tickT <= 0) { SFX.tick(w.progress); P.tickT = 0.09; }
       if (w.progress >= 1) {
         const avg = holders.reduce((a, p) => a + p.ch.life, 0) / holders.length;
+        const wasSealed = w.sealed, wasCrack = w.crack;
         w.sealed = true; w.crack = false; w.maxLife = par.sealLife * avg * (1 + tm.life); w.life = w.maxLife; w.progress = 0; w.flash = 0.5; P.stats.seals++;
         for (const p of holders) if (p.m.rush) p.rushT = 4;
         SFX.seal(); burst(L.ox + w.rect.x + w.rect.w / 2, L.oy + w.rect.y + w.rect.h / 2, '#9bf0b0', 14, 50);
+        if (P.np === 2) scoreSeal(w, holders, wasSealed, wasCrack);
+        if (P.rival) snapFrame(w, holders);
       }
-    } else if (w.progress > 0) w.progress = Math.max(0, w.progress - dt / baseTime(w) * 0.7);
+    } else if (w.progress > 0) {
+      const o = w.progress; w.progress = Math.max(0, w.progress - dt / baseTime(w) * 0.7);
+      const f = w.progress / o; w.contrib[0] *= f; w.contrib[1] *= f;
+    }
     if (w.flash > 0) w.flash -= dt;
     if (w.failFlash > 0) w.failFlash -= dt;
     if (w.sealed) {
@@ -1206,7 +1293,7 @@ function updatePlay(dt) {
     const taker = P.pl.find(p => Math.hypot(m.x - p.x, m.y - p.y) < 7);
     if (taker) {
       const dur = Math.round(12 + tm.masks * 8);
-      P.masks.splice(i, 1); taker.mask = dur; SFX.pick();
+      P.masks.splice(i, 1); taker.mask = dur; SFX.pick(); award(taker.i, 3, 'MASK', L.ox + m.x, L.oy + m.y - 8);
       addMsg((P.np === 2 ? 'P' + (taker.i + 1) + ' ' : '') + 'MASK ON! ' + dur + ' SECONDS OF SAFER AIR', '#9bf0b0');
       burst(L.ox + m.x, L.oy + m.y, '#ffffff', 10, 40);
     }
@@ -1238,6 +1325,8 @@ function updatePlay(dt) {
   }
   for (const m of P.msgs) m.age += dt;
   P.msgs = P.msgs.filter(m => m.age < 3);
+  for (const q of P.pops) q.t -= dt;
+  P.pops = P.pops.filter(q => q.t > 0);
   P.shake = Math.max(0, P.shake - dt);
 
   // music: a small bass loop that speeds up with the PSI
@@ -1443,6 +1532,10 @@ function drawInset(w, hold) {
   ctx.fillStyle = '#4fe3ff'; ctx.fillRect(px + 4, py + ph - 4, Math.round((pw - 8) * p), 2);
 }
 
+function drawCrown(x, y, col) {
+  ctx.fillStyle = col; ctx.fillRect(x, y + 3, 7, 2);
+  ctx.fillRect(x, y + 1, 1, 2); ctx.fillRect(x + 3, y, 1, 3); ctx.fillRect(x + 6, y + 1, 1, 2);
+}
 function drawHUD() {
   const L = P.L, par = P.par;
   ctx.fillStyle = '#1d1b2e'; ctx.fillRect(0, 0, VW, HUD_H);
@@ -1459,6 +1552,11 @@ function drawHUD() {
     const label = P.np === 2 ? 'P' + (i + 1) + ' ' + p.ch.name : 'LUNGS';
     text(label, left ? 5 : 379, 3, P.np === 2 ? PCOL[i] : '#9a93b3', 1, left ? 'l' : 'r');
     bar(left ? 5 : 275, 13, 104, r, hpCol(r), p.hurt > 0.3 && flashOn);
+    if (P.np === 2) {                                           // running score, with a crown for whoever leads
+      const sc = String(P.score[i]), lead = P.score[i] > P.score[1 - i];
+      if (left) { text(sc, 113, 3, PCOL[i], 1, 'l'); if (lead) drawCrown(113 + textW(sc) + 4, 3, '#ffe066'); }
+      else { text(sc, 271, 3, PCOL[i], 1, 'r'); if (lead) drawCrown(271 - textW(sc) - 11, 3, '#ffe066'); }
+    }
     text(Math.ceil(r * 100) + '%', left ? 113 : 270, 13, '#f1ead7', 1, left ? 'l' : 'r');
     if (p.mask > 0) {
       const mx = left ? 5 + textW(label) + 8 : 379 - textW(label) - 26;
@@ -1546,10 +1644,20 @@ function drawPlay() {
     if (p.inv > 0 && Math.floor(G.t * 14) % 2) return;
     const frame = p.moving ? [0, 1, 0, 2][Math.floor(p.anim) % 4] : 0;
     const fx = Math.round(ox + p.x), fy = Math.round(oy + p.y + 3);
+    if (P.np === 2) {                                       // a ring in the player's colour under the feet
+      ctx.fillStyle = PCOL[p.i];
+      ctx.fillRect(fx - 4, fy - 2, 9, 1); ctx.fillRect(fx - 4, fy + 2, 9, 1); ctx.fillRect(fx - 6, fy - 1, 1, 3); ctx.fillRect(fx + 6, fy - 1, 1, 3);
+    }
     drawChar(ctx, p.ch, fx, fy, p.dir, frame, 1, p.mask > 0);
-    if (P.np === 2) {
-      ctx.fillStyle = PCOL[p.i]; ctx.fillRect(fx - 2, fy - 24, 5, 1); ctx.fillRect(fx - 1, fy - 23, 3, 1); ctx.fillRect(fx, fy - 22, 1, 1);
-      text(String(p.i + 1), fx, fy - 32, PCOL[p.i], 1, 'c', '#000');
+    if (p.stagger > 0) {                                    // dazed: little stars circle the head
+      for (let n = 0; n < 3; n++) { const a = G.t * 14 + n * 2.1; ctx.fillStyle = '#ffe066'; ctx.fillRect(fx + Math.round(Math.cos(a) * 5) - 1, fy - 19 + Math.round(Math.sin(a) * 2), 2, 2); }
+    }
+    if (P.np === 2) {                                       // and a tag with a pointer over the head
+      const tx = fx + (p.i ? 8 : -8);                       // tags lean apart so they never cover each other
+      ctx.fillStyle = '#14121f'; ctx.fillRect(tx - 8, fy - 29, 17, 11);
+      ctx.fillStyle = PCOL[p.i]; ctx.fillRect(tx - 7, fy - 28, 15, 9);
+      ctx.fillRect(fx - 2, fy - 19, 5, 1); ctx.fillRect(fx - 1, fy - 18, 3, 1); ctx.fillRect(fx, fy - 17, 1, 1);
+      text('P' + (p.i + 1), tx, fy - 26, '#14121f', 1, 'c');
     }
   });
   // call-outs
@@ -1561,6 +1669,11 @@ function drawPlay() {
     ctx.fillStyle = PCOL[g.p]; ctx.fillRect(x - 4, y - 14, 9, 10);
     ctx.fillRect(x - 2, y - 3, 5, 1); ctx.fillRect(x - 1, y - 2, 3, 1); ctx.fillRect(x, y - 1, 1, 1);
     text('!', x, y - 13, '#14121f', 1, 'c');
+    ctx.globalAlpha = 1;
+  }
+  for (const q of P.pops) {                                 // floating points
+    ctx.globalAlpha = clamp(q.t / 0.4, 0, 1);
+    text(q.txt, Math.round(q.x), Math.round(q.y - (1.2 - q.t) * 12), q.col, 1, 'c', 'plate');
     ctx.globalAlpha = 1;
   }
   for (const p of P.parts) {
@@ -1724,7 +1837,8 @@ function drawLevels() {
   text(G.heat ? 'HARDER HAZE. SHARDS +' + 25 * G.heat + '%' : 'NORMAL. PRESS UP FOR HEAT', 188, 186, G.heat ? '#ffb09a' : '#f1ead7');
   button('BACK', 16, 204, 70, 14, () => { SFX.ui(); go('chars'); });
   button('CONTINUE', 288, 204, 80, 14, () => { SFX.ok(); go('controls'); });
-  text(kb('LEFT/RIGHT FLAT.  UP/DOWN HEAT.  ENTER.'), 192, 228, '#9a93b3', 1, 'c');
+  if (G.np === 2) button('FRIENDLY FIRE: ' + (G.ff ? 'ON' : 'OFF'), 100, 204, 180, 14, () => { G.ff = !G.ff; SFX.ui(); });
+  text(kb(G.np === 2 ? 'LEFT/RIGHT FLAT.  UP/DOWN HEAT.  F FIRE.  ENTER.' : 'LEFT/RIGHT FLAT.  UP/DOWN HEAT.  ENTER.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
 /* ---------- controls screen: only pictures of keys ---------- */
@@ -1776,6 +1890,12 @@ function drawDemo(x, y, w, h, ch) {
   drawChar(ctx, ch, Math.round(x + w / 2), Math.round(fy), 'u', frame, 2, false);
   if (done && t < 4.4) { ctx.fillStyle = '#9bf0b0'; const bx = wx + 46, by = y + 6; ctx.fillRect(bx, by + 4, 2, 2); ctx.fillRect(bx + 2, by + 6, 2, 2); ctx.fillRect(bx + 4, by + 4, 2, 2); ctx.fillRect(bx + 6, by + 2, 2, 2); ctx.fillRect(bx + 8, by, 2, 2); }
 }
+function disc(cx, cy, r, col) { ctx.fillStyle = col; for (let y = -r; y <= r; y++) { const w = Math.floor(Math.sqrt(r * r - y * y)); ctx.fillRect(cx - w, cy + y, w * 2 + 1, 1); } }
+// a thumb stick picture: the knob circles inside its ring
+function stickIcon(cx, cy, col) {
+  disc(cx, cy, 17, col); disc(cx, cy, 15, '#14121f');
+  const a = G.t * 2.2; disc(Math.round(cx + Math.cos(a) * 7), Math.round(cy + Math.sin(a) * 7), 8, col);
+}
 function drawControls() {
   menuBackdrop(0.7);
   panel(24, 12, 336, 190, '#1d1b2e', '#f2b134');
@@ -1783,21 +1903,35 @@ function drawControls() {
   const walking = (G.t % 5) < 1.8, two = G.np === 2;
   const dn = [walking, false, false, false];
   if (!two) {
-    cluster(72, 66, 'wasd', '#f2b134', dn);
-    text('OR', 118, 83, '#9a93b3', 1, 'c');
-    cluster(164, 66, 'arrows', '#f2b134', dn);
-    text('MOVE', 118, 112, '#f1ead7', 1, 'c');
+    if (TOUCH) { stickIcon(118, 80, '#f2b134'); text('SLIDE TO MOVE', 118, 112, '#f1ead7', 1, 'c'); }
+    else {
+      cluster(72, 66, 'wasd', '#f2b134', dn);
+      text('OR', 118, 83, '#9a93b3', 1, 'c');
+      cluster(164, 66, 'arrows', '#f2b134', dn);
+      text('MOVE', 118, 112, '#f1ead7', 1, 'c');
+    }
     drawDemo(212, 46, 132, 92, CHARS[G.ch[0]]);
   } else {
-    text('P1', 72, 42, PCOL[0], 1, 'c'); text('P2', 312, 42, PCOL[1], 1, 'c');
-    cluster(72, 56, 'wasd', PCOL[0], dn); cluster(312, 56, 'arrows', PCOL[1], [false, false, false, false]);
-    text('MOVE', 72, 96, '#f1ead7', 1, 'c'); text('MOVE', 312, 96, '#f1ead7', 1, 'c');
-    keycap(52, 116, 'Q', PCOL[0], false); text('CALL', 72, 120, '#f1ead7', 1, 'l');
-    keycap(292, 116, '/', PCOL[1], false); text('CALL', 312, 120, '#f1ead7', 1, 'l');
-    drawDemo(132, 46, 120, 84, CHARS[G.ch[0]]);
+    // one card per player: coloured header, their own character, their own keys
+    for (let i = 0; i < 2; i++) {
+      const bx = i === 0 ? 30 : 246, by = 38, bw = 108, cx = bx + bw / 2, col = PCOL[i], ch = CHARS[G.ch[i]];
+      ctx.fillStyle = col; ctx.fillRect(bx - 2, by - 2, bw + 4, 134);
+      ctx.fillStyle = '#14121f'; ctx.fillRect(bx, by + 12, bw, 118);
+      text(TOUCH ? (i === 0 ? 'P1 LEFT THUMB' : 'P2 RIGHT THUMB') : 'PLAYER ' + (i + 1), cx, by + 2, '#14121f', 1, 'c');
+      drawChar(ctx, ch, cx, by + 52, 'd', 0, 2);
+      text(ch.name, cx, by + 57, '#f1ead7', 1, 'c');
+      if (TOUCH) { stickIcon(cx, by + 88, col); text('SLIDE', cx, by + 108, '#f1ead7', 1, 'c'); disc(cx - 22, by + 120, 7, col); text('!', cx - 22, by + 117, '#14121f', 1, 'c'); text('CALL', cx - 10, by + 118, '#f1ead7', 1, 'l'); }
+      else {
+        cluster(cx, by + 70, i === 0 ? 'wasd' : 'arrows', col, i === 0 ? dn : [false, false, false, false]);
+        text('MOVE', cx, by + 106, '#f1ead7', 1, 'c');
+        keycap(cx - 30, by + 114, i === 0 ? 'Q' : '/', col, false); text('CALL', cx - 10, by + 118, '#f1ead7', 1, 'l');
+      }
+    }
+    drawDemo(152, 56, 80, 84, CHARS[G.ch[0]]);
   }
-  button('BACK', 36, 172, 60, 14, () => { SFX.ui(); go('levels'); });
-  button('START', 136, 172, 112, 14, () => { SFX.ok(); startRun(); });
+  button('BACK', 36, 176, 60, 14, () => { SFX.ui(); go('levels'); });
+  if (two) text(G.ff ? 'MOST POINTS WINS. FRIENDLY FIRE ON.' : 'MOST POINTS WINS. FRIENDLY FIRE OFF.', 192, 194, '#9a93b3', 1, 'c');
+  button('START', 136, 176, 112, 14, () => { SFX.ok(); startRun(); });
   if (Math.floor(G.t * 2) % 2 === 0) text(kb('PRESS ENTER'), 192, 214, '#ffffff', 1, 'c', 'plate');
 }
 
@@ -1882,15 +2016,28 @@ function drawClear() {
   drawPlay();
   const r = P.result;
   ctx.fillStyle = DARK_DITH[11]; ctx.fillRect(0, 0, VW, VH);
-  panel(72, 36, 240, 150, '#1d1b2e', '#5be37d');
-  text('FLOOR ' + P.floor + ' CLEARED!', 192, 46, '#9bf0b0', 2, 'c');
-  text('ROUND ' + (P.depth + 1) + ' OF 3', 192, 66, '#9a93b3', 1, 'c');
-  const rows = P.np === 2
-    ? [['P1 LUNGS', r.lungs[0] + '%'], ['P2 LUNGS', r.lungs[1] + '%'], [P.fam.name, r.famPct + '%'], ['SEALS OK / FAILED', P.stats.seals + ' / ' + P.stats.fails]]
+  panel(72, 30, 240, 164, '#1d1b2e', '#5be37d');
+  text('FLOOR ' + P.floor + ' CLEARED!', 192, 40, '#9bf0b0', 2, 'c');
+  text('ROUND ' + (P.depth + 1) + ' OF 3', 192, 60, '#9a93b3', 1, 'c');
+  const two = P.np === 2;
+  const rows = two
+    ? [['P1 / P2 LUNGS', r.lungs[0] + '% / ' + r.lungs[1] + '%'], [P.fam.name, r.famPct + '%'], ['SEALS OK / FAILED', P.stats.seals + ' / ' + P.stats.fails]]
     : [['LUNGS LEFT', r.lungs[0] + '%'], [P.fam.name, r.famPct + '%'], ['PEAK PSI', P.stats.peak], ['SEALS OK / FAILED', P.stats.seals + ' / ' + P.stats.fails]];
-  rows.forEach((row, i) => { text(row[0], 96, 84 + i * 11, '#9a93b3'); text(row[1], 288, 84 + i * 11, '#f1ead7', 1, 'r'); });
-  text('FRESH AIR: +35% LUNGS', 192, 134, '#9bf0b0', 1, 'c');
-  button('CONTINUE', 132, 156, 120, 14, () => { if (G.t > 0.5) clearNext(); });
+  rows.forEach((row, i) => { text(row[0], 96, 76 + i * 11, '#9a93b3'); text(row[1], 288, 76 + i * 11, '#f1ead7', 1, 'r'); });
+  if (two) {
+    const s0 = String(r.score[0]), s1 = String(r.score[1]);
+    text('P1 ' + s0, 96, 114, PCOL[0], 2, 'l', '#000'); text(s1 + ' P2', 288, 114, PCOL[1], 2, 'r', '#000');
+    if (r.hero === 0) drawCrown(96, 106, '#ffe066'); else if (r.hero === 1) drawCrown(281, 106, '#ffe066');
+    if (r.hero >= 0) {
+      text('HAZE HERO: P' + (r.hero + 1) + ' ' + CHARS[G.ch[r.hero]].name, 192, 134, PCOL[r.hero], 1, 'c');
+      text('BETTER BOON ODDS NEXT', 192, 144, '#9a93b3', 1, 'c');
+    } else text('DEAD HEAT. NO HERO THIS ROUND.', 192, 134, '#9a93b3', 1, 'c');
+    text('FRESH AIR: +35% LUNGS', 192, 156, '#9bf0b0', 1, 'c');
+    button('CONTINUE', 132, 168, 120, 14, () => { if (G.t > 0.5) clearNext(); });
+  } else {
+    text('FRESH AIR: +35% LUNGS', 192, 126, '#9bf0b0', 1, 'c');
+    button('CONTINUE', 132, 150, 120, 14, () => { if (G.t > 0.5) clearNext(); });
+  }
 }
 
 function drawCountdown() {
@@ -1904,6 +2051,15 @@ function drawCountdown() {
   else if (P.risk) text('HAZY LIFT', 192, 72, '#f2b134', 2, 'c', 'plate');
   text(lab, 192, 98, '#f2b134', 6, 'c', '#000');
   text('ALL WINDOWS ARE OPEN', 192, 156, '#ff8a7a', 1, 'c', 'plate');
+  if (P.np === 2) text(P.rival ? 'FRIENDLY FIRE IS ON. MOST POINTS WINS.' : 'MOST POINTS WINS THE ROUND.', 192, 164, '#f1ead7', 1, 'c', 'plate');
+  if (P.np === 2) {                                         // who has which keys
+    [['P1  W A S D', 96, 0], ['P2  ARROWS', 288, 1]].forEach(([lab, cx, i]) => {
+      const w = textW(lab) + 10;
+      ctx.fillStyle = PCOL[i]; ctx.fillRect(cx - w / 2 - 2, 178, w + 4, 15);
+      ctx.fillStyle = '#14121f'; ctx.fillRect(cx - w / 2, 180, w, 11);
+      text(lab, cx, 183, PCOL[i], 1, 'c');
+    });
+  }
 }
 
 function drawPause() {
@@ -1931,11 +2087,18 @@ function drawEnd() {
     ? [['P1 / P2 LUNGS', r.lungs[0] + '% / ' + r.lungs[1] + '%'], [FAMN[P.depth], r.famPct + '%'], ['SEALS OK / FAILED', run.seals + ' / ' + run.fails]]
     : [['LUNGS LEFT', r.lungs[0] + '%'], [FAMN[P.depth], r.famPct + '%'], ['SEALS OK / FAILED', run.seals + ' / ' + run.fails]];
   rows.forEach((row, i) => { text(row[0], 84, 84 + i * 11, '#9a93b3'); text(row[1], 300, 84 + i * 11, '#f1ead7', 1, 'r'); });
-  text('BOONS', 84, 124, '#9a93b3');
-  if (G.np === 1) pipRow(run.boons[0], 130, 123, 'l');
-  else { pipRow(run.boons[0], 130, 123, 'l'); pipRow(run.boons[1], 300, 123, 'r'); }
-  text('+' + r.shards + ' SHARDS', 192, 144, '#f2d43a', 2, 'c', '#000');
-  text('TOTAL ' + meta.shards, 192, 164, '#9a93b3', 1, 'c');
+  if (G.np === 2) {
+    const [a, b] = run.score, hero = a === b ? -1 : (a > b ? 0 : 1);
+    text('P1 ' + a, 84, 120, PCOL[0], 2, 'l', '#000'); text(b + ' P2', 300, 120, PCOL[1], 2, 'r', '#000');
+    if (hero === 0) drawCrown(84, 111, '#ffe066'); else if (hero === 1) drawCrown(293, 111, '#ffe066');
+    if (hero >= 0) text('HAZE HERO: P' + (hero + 1) + ' ' + CHARS[G.ch[hero]].name, 192, 138, PCOL[hero], 1, 'c');
+    else text('DEAD HEAT. NO HERO.', 192, 138, '#9a93b3', 1, 'c');
+  } else {
+    text('BOONS', 84, 124, '#9a93b3');
+    pipRow(run.boons[0], 130, 123, 'l');
+  }
+  text('+' + r.shards + ' SHARDS', 192, 150, '#f2d43a', 2, 'c', '#000');
+  text('TOTAL ' + meta.shards, 192, 168, '#9a93b3', 1, 'c');
   button('AGAIN (R)', 76, 188, 76, 14, () => { SFX.ui(); startRun(); });
   button('WORKSHOP', 156, 188, 76, 14, () => { SFX.ui(); G.shop = 0; go('shop'); });
   button('MENU', 236, 188, 76, 14, () => { SFX.ui(); go('levels'); });
@@ -1984,6 +2147,7 @@ function update(dt) {
       if (right) { G.lv = (G.lv + 1) % 3; SFX.ui(); }
       if (up) { G.heat = Math.min(3, G.heat + 1); SFX.ui(); }
       if (down) { G.heat = Math.max(0, G.heat - 1); SFX.ui(); }
+      if (pressed.has('ff') && G.np === 2) { G.ff = !G.ff; SFX.ui(); }
       if (confirmKey()) { SFX.ok(); go('controls'); } else if (pressed.has('esc')) go('chars');
       break;
     case 'controls': if (confirmKey()) { SFX.ok(); startRun(); } else if (pressed.has('esc')) go('levels'); break;
@@ -2042,8 +2206,14 @@ function render() {
   }
   const hint = document.getElementById('hint');
   const playing = G.state === 'play' || G.state === 'countdown';
+  const uiKey = (playing ? 'play' : 'menu') + G.np;
+  if (uiKey !== ui.key) {                                    // touch controls follow what is on screen
+    ui.key = uiKey; document.body.dataset.ui = playing ? 'play' : 'menu'; document.body.dataset.np = G.np;
+    if (!playing) sticks.forEach(stickRelease);
+    layoutTouch();
+  }
   const txt = TOUCH ? (playing ? 'TURN YOUR PHONE SIDEWAYS FOR A BIGGER SCREEN.' : 'TAP THE SCREEN OR USE THE PAD. TURN SIDEWAYS FOR A BIGGER SCREEN.') : (playing ? 'PAUSE: P.  SOUND: M.' : 'ARROWS + ENTER, OR CLICK / TAP.');
-  if (hint.textContent !== txt) hint.textContent = txt;
+  if (hint.textContent !== txt) { hint.textContent = txt; layoutTouch(); }
   cv.style.cursor = !playing && ui.cur.some(b => ui.mx >= b.x && ui.mx < b.x + b.w && ui.my >= b.y && ui.my < b.y + b.h) ? 'pointer' : 'default';
 }
 
@@ -2062,7 +2232,7 @@ function frame(now) {
 /* ---------- input ---------- */
 // menus use NAV names; during play each key belongs to a player
 const NAV = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
-  Space: 'act', KeyE: 'act', Enter: 'ok', Escape: 'esc', KeyP: 'pause', KeyM: 'mute', KeyR: 'retry', Digit1: 'd1', Digit2: 'd2' };
+  Space: 'act', KeyE: 'act', Enter: 'ok', Escape: 'esc', KeyP: 'pause', KeyM: 'mute', KeyR: 'retry', KeyF: 'ff', Digit1: 'd1', Digit2: 'd2' };
 function mapPlay(code) {
   const two = G.np === 2;
   switch (code) {
@@ -2098,37 +2268,69 @@ cv.addEventListener('pointerdown', e => {
     if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) { b.fn(); break; }
   }
 });
-// thumb pad: one touch area, direction from where the thumb sits (diagonals allowed, slides smoothly between directions)
-const padEl = document.getElementById('dpad');
-const padKeys = { left: padEl.querySelector('.l'), right: padEl.querySelector('.r'), up: padEl.querySelector('.u'), down: padEl.querySelector('.d') };
-let padId = null;
-function setPad(dirs) {
-  for (const k of ['left', 'right', 'up', 'down']) {
-    const on = !!dirs[k];
-    if (on && !inp[0][k] && G.state !== 'play') pressed.add(k);
-    inp[0][k] = on;
-    padKeys[k].classList.toggle('on', on);
-  }
+// floating thumb sticks: touch anywhere in your half of the screen and the stick appears under your thumb
+const touchEl = document.getElementById('touch');
+const stickSize = () => clamp(Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.4), 112, 190);
+const sticks = [0, 1].map(i => {
+  const zone = document.getElementById('zone' + i), base = document.createElement('div');
+  base.className = 'stick'; base.innerHTML = '<i></i>'; base.style.setProperty('--c', PCOL[i]);
+  touchEl.insertBefore(base, touchEl.firstChild);
+  return { i, zone, base, knob: base.firstChild, id: null, ox: 0, oy: 0, rest: [0, 0] };
+});
+function stickPlace(s, x, y) { const D = stickSize(); s.base.style.width = s.base.style.height = D + 'px'; s.base.style.left = Math.round(x - D / 2) + 'px'; s.base.style.top = Math.round(y - D / 2) + 'px'; }
+function stickUpdate(s, e) {
+  const R = s.base.offsetWidth / 2, k = inp[s.i];
+  let dx = e.clientX - s.ox, dy = e.clientY - s.oy; const d = Math.hypot(dx, dy), m = Math.min(1, d / R);
+  if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+  s.knob.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
+  if (m < 0.16) { k.ax = 0; k.ay = 0; }                               // dead zone in the middle
+  else { const mag = clamp((m - 0.16) / 0.55, 0.4, 1), l = Math.hypot(dx, dy); k.ax = dx / l * mag; k.ay = dy / l * mag; }
 }
-function padFrom(e) {
-  const r = padEl.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-  const d = {};
-  if (Math.hypot(dx, dy) < r.width * 0.14) return d;                       // dead zone in the middle
-  const ax = Math.abs(dx), ay = Math.abs(dy);
-  if (ax > ay * 0.45) d[dx < 0 ? 'left' : 'right'] = true;
-  if (ay > ax * 0.45) d[dy < 0 ? 'up' : 'down'] = true;
-  return d;
+function stickRelease(s) {
+  s.id = null; inp[s.i].ax = 0; inp[s.i].ay = 0;
+  s.knob.style.transform = ''; s.base.classList.remove('on');
+  stickPlace(s, s.rest[0], s.rest[1]);
 }
-padEl.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); padId = e.pointerId; try { padEl.setPointerCapture(e.pointerId); } catch (x) { /* optional */ } setPad(padFrom(e)); });
-padEl.addEventListener('pointermove', e => { if (e.pointerId === padId) setPad(padFrom(e)); });
-const padOff = e => { if (e.pointerId === padId) { padId = null; setPad({}); } };
-padEl.addEventListener('pointerup', padOff); padEl.addEventListener('pointercancel', padOff);
+sticks.forEach(s => {
+  s.zone.addEventListener('pointerdown', e => {
+    if (s.id !== null) return;
+    e.preventDefault(); audioInit(); s.id = e.pointerId;
+    try { s.zone.setPointerCapture(e.pointerId); } catch (x) { /* optional */ }
+    const R = stickSize() / 2;
+    s.ox = clamp(e.clientX, R + 6, window.innerWidth - R - 6); s.oy = clamp(e.clientY, R + 6, window.innerHeight - R - 6);
+    stickPlace(s, s.ox, s.oy); s.base.classList.add('on'); s.base.classList.remove('ghost');
+    stickUpdate(s, e);
+  });
+  s.zone.addEventListener('pointermove', e => { if (e.pointerId === s.id) stickUpdate(s, e); });
+  const up = e => { if (e.pointerId === s.id) { stickRelease(s); s.base.classList.toggle('ghost', document.body.dataset.ui === 'play'); } };
+  s.zone.addEventListener('pointerup', up); s.zone.addEventListener('pointercancel', up);
+});
+// where each zone sits depends on how the phone is held and on one or two players
+function layoutTouch() {
+  if (!TOUCH) return;
+  const mode = document.body.dataset.mode, W = window.innerWidth, H = window.innerHeight, two = G.np === 2;
+  const top = mode === 'land' ? 0 : Math.round(document.getElementById('bar').getBoundingClientRect().bottom + 4);
+  sticks.forEach(s => {
+    const left = s.i === 0 ? 0 : W / 2, width = s.i === 0 ? (two || mode === 'land' ? W / 2 : W) : W / 2, on = s.i === 0 || two;
+    Object.assign(s.zone.style, { left: left + 'px', width: width + 'px', top: top + 'px', bottom: '0', display: on ? 'block' : 'none' });
+    s.base.style.display = on ? 'block' : 'none';
+    s.rest = [left + width / 2, top + (H - top) * 0.62];
+    if (s.id === null) { stickPlace(s, s.rest[0], s.rest[1]); s.base.classList.toggle('ghost', document.body.dataset.ui === 'play'); }
+  });
+  document.querySelectorAll('#touch .call').forEach(b => { b.style.top = (mode === 'land' ? Math.round(H * 0.3) : top + 8) + 'px'; });
+  const pz = document.querySelector('#touch .pause'); if (mode === 'port') pz.style.top = (top + 8) + 'px';
+}
 document.querySelectorAll('#touch [data-tap]').forEach(b => {
-  b.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); pressed.add(b.dataset.tap); b.classList.add('on'); });
+  const t = b.dataset.tap;
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault(); audioInit(); b.classList.add('on');
+    if (t === 'ping0' || t === 'ping1') { if (G.state === 'play') pingEdge[+t.slice(4)] = true; } else pressed.add(t);
+  });
   const off = () => b.classList.remove('on');
   b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
 });
-document.getElementById('touch').classList.toggle('show', TOUCH);
+touchEl.classList.toggle('show', TOUCH);
+document.body.dataset.ui = 'menu';
 
 function toggleMute() {
   muted = !muted;
@@ -2143,7 +2345,7 @@ document.getElementById('fs').addEventListener('click', () => {
 // counted in real device pixels, so a high-density phone screen still gets crisp, evenly sized pixels
 if (!document.fullscreenEnabled) document.getElementById('fs').style.display = 'none';
 function fit() {
-  const bar = document.getElementById('bar'), touch = document.getElementById('touch'), shell = document.getElementById('shell');
+  const bar = document.getElementById('bar'), shell = document.getElementById('shell');
   const W = document.documentElement.clientWidth, H = window.innerHeight, dpr = window.devicePixelRatio || 1;
   const mode = !TOUCH ? 'desk' : (W > H ? 'land' : 'port');
   document.body.dataset.mode = mode;
@@ -2152,18 +2354,13 @@ function fit() {
   document.getElementById('fs').textContent = mode === 'land' ? 'FULL' : 'FULLSCREEN';
   let availW, availH;
   if (mode === 'land') { availW = W; availH = H - 8; }
-  else if (mode === 'port') { availW = W - 8; availH = H - bar.offsetHeight - touch.offsetHeight - 40; }
+  else if (mode === 'port') { availW = W - 8; availH = H - bar.offsetHeight - 220; }
   else { availW = W - 32; availH = H - bar.offsetHeight - 48; }
   let s = Math.min(availW / VW, availH / VH);
   const d = s * dpr;
   if (!TOUCH) s = d >= 2 ? Math.floor(d) / dpr : Math.max(0.5, s);   // desktop: whole pixel steps. Phones: use all the room, the screen is dense enough to hide the unevenness
-  const cw = Math.floor(VW * s * dpr) / dpr;
-  cv.style.width = cw + 'px'; cv.style.height = Math.floor(VH * s * dpr) / dpr + 'px';
-  if (TOUCH) {
-    // size the pad to the room beside the screen when held sideways, or to the screen width when upright
-    const k = mode === 'land' ? (W - cw) / 2 : cw;
-    touch.style.setProperty('--k', clamp(mode === 'land' ? (k - 22) / 3 : k / 7, 34, 60) + 'px');
-  }
+  cv.style.width = Math.floor(VW * s * dpr) / dpr + 'px'; cv.style.height = Math.floor(VH * s * dpr) / dpr + 'px';
+  layoutTouch();
 }
 window.addEventListener('resize', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 150)); document.addEventListener('fullscreenchange', fit);
 fit();
