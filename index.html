@@ -1,3 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12101c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Seal the Haze</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,11 +29,16 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-ui);
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 10px;
+  padding-left: max(10px, env(safe-area-inset-left, 0px));
+  padding-right: max(10px, env(safe-area-inset-right, 0px));
+  padding-block: 6px;
   box-sizing: border-box;
-  overflow-x: hidden;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none; user-select: none;
 }
 #shell {
   height: 100%;
@@ -32,7 +46,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   background: var(--bg);
 }
 canvas#game {
@@ -67,44 +81,61 @@ canvas#game {
   cursor: pointer;
 }
 #bar button:hover { border-color: var(--accent); }
-#bar button:focus-visible, #touch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-#touch {
-  display: grid;
-  grid-template-columns: auto;
-  justify-content: center;
-  width: 100%;
-  max-width: 480px;
-  gap: 12px;
-  user-select: none;
-  -webkit-user-select: none;
-}
-#touch[hidden] { display: none; }
-#touch .pad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 4px; }
-#touch button {
-  font-family: var(--font-ui);
-  font-size: 16px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 2px solid var(--line);
+#bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* on-screen controls: a thumb pad on the left, OK and pause on the right */
+#touch { --k: 54px; display: none; user-select: none; -webkit-user-select: none; }
+#touch.show { display: flex; }
+.dpad {
+  position: relative; flex: none;
+  width: calc(var(--k) * 3); height: calc(var(--k) * 3);
   touch-action: none;
 }
-#touch button:active, #touch button.on { background: var(--accent); color: #14121f; }
-#touch .up { grid-column: 2; grid-row: 1; }
-#touch .left { grid-column: 1; grid-row: 2; }
-#touch .down { grid-column: 2; grid-row: 2; }
-#touch .right { grid-column: 3; grid-row: 2; }
-#touch .act { width: 108px; height: 108px; border-radius: 50%; font-size: 12px; align-self: center; }
+.dpad i {
+  position: absolute; width: var(--k); height: var(--k);
+  display: flex; align-items: center; justify-content: center;
+  font-style: normal; font-size: calc(var(--k) * 0.34);
+  color: var(--ink); background: rgba(29, 27, 46, 0.82);
+  border: 2px solid var(--line); box-sizing: border-box;
+  pointer-events: none;
+}
+.dpad i.on { background: var(--accent); color: #14121f; border-color: var(--accent); }
+.dpad .u { left: var(--k); top: 0; } .dpad .d { left: var(--k); top: calc(var(--k) * 2); }
+.dpad .l { left: 0; top: var(--k); } .dpad .r { left: calc(var(--k) * 2); top: var(--k); }
+.dpad .c { left: var(--k); top: var(--k); background: rgba(20, 18, 31, 0.6); }
+.side { display: flex; flex-direction: column; gap: calc(var(--k) * 0.3); align-items: flex-end; justify-content: flex-end; }
+.side button {
+  font-family: var(--font-ui); font-size: calc(var(--k) * 0.28); color: var(--ink);
+  width: calc(var(--k) * 1.5); height: calc(var(--k) * 1.1);
+  background: rgba(29, 27, 46, 0.82); border: 2px solid var(--line); touch-action: none;
+}
+.side button.on { background: var(--accent); color: #14121f; border-color: var(--accent); }
+
+/* phone held upright: screen on top, controls under it */
+body[data-mode="port"] #touch { width: 100%; justify-content: space-between; align-items: flex-end; padding: 0 4px; box-sizing: border-box; }
+/* phone held sideways: the screen fills the height, controls float in the side margins */
+body[data-mode="land"] { padding: 4px 0; }
+body[data-mode="land"] #shell { gap: 0; }
+body[data-mode="land"] #touch { position: fixed; left: 0; right: 0; bottom: 0; justify-content: space-between; align-items: flex-end; pointer-events: none; padding: 0 max(12px, env(safe-area-inset-right, 0px)) 12px max(12px, env(safe-area-inset-left, 0px)); }
+body[data-mode="land"] #touch .dpad, body[data-mode="land"] #touch .side { pointer-events: auto; }
+body[data-mode="land"] #bar { position: fixed; top: 6px; right: max(8px, env(safe-area-inset-right, 0px)); flex-direction: column; gap: 6px; }
+body[data-mode="land"] #bar p { display: none; }
+body[data-mode="land"] #bar button { font-size: 7px; padding: 5px 7px; opacity: 0.85; }
 @media (prefers-reduced-motion: reduce) { canvas#game { transition: none; } }
 </style>
+</head>
+<body>
+
 
 <main id="shell">
   <canvas id="game" width="384" height="240" tabindex="0" aria-label="Seal the Haze game screen"></canvas>
-  <div id="touch" hidden>
-    <div class="pad">
-      <button class="up" data-key="up" aria-label="Move up">&#9650;</button>
-      <button class="left" data-key="left" aria-label="Move left">&#9664;</button>
-      <button class="down" data-key="down" aria-label="Move down">&#9660;</button>
-      <button class="right" data-key="right" aria-label="Move right">&#9654;</button>
+  <div id="touch">
+    <div class="dpad" id="dpad" aria-label="Move">
+      <i class="u">&#9650;</i><i class="l">&#9664;</i><i class="c"></i><i class="r">&#9654;</i><i class="d">&#9660;</i>
+    </div>
+    <div class="side">
+      <button type="button" data-tap="pause" aria-label="Pause">II</button>
+      <button type="button" data-tap="ok" aria-label="OK">OK</button>
     </div>
   </div>
   <div id="bar">
@@ -127,6 +158,8 @@ canvas#game {
 
 const VW = 384, VH = 240, T = 8, HUD_H = 32, BAR_Y = 224;
 const BRAND = 'NUTD';
+const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0);
+const kb = str => TOUCH ? str.replace(/ENTER/g, 'OK') : str;   // phones have an OK button, not an Enter key
 /* balance knobs */
 const DECAY_BASE = 0.6, DECAY_PSI = 0.6, DMG_RATE = 6, REINFORCE_MULT = 0.45, FAM_MULT = 0.8;
 const cv = document.getElementById('game');
@@ -1615,7 +1648,7 @@ function drawTitle() {
   text('HAZE', 192, y + 36, '#f2b134', 4, 'c', '#7a3a10');
   text('A SINGAPORE HAZE ROGUELIKE', 192, 100, '#f1ead7', 1, 'c', 'plate');
   [['1 PLAYER', 54], ['2 PLAYERS', 150], ['WORKSHOP', 246]].forEach(([lab, x], i) => choice(lab, x, 122, 84, 16, G.tsel === i, () => titlePick(i)));
-  if (Math.floor(G.t * 2) % 2 === 0) text('ARROWS + ENTER, OR PRESS 1 / 2', 192, 150, '#ffffff', 1, 'c', 'plate');
+  if (Math.floor(G.t * 2) % 2 === 0) text(TOUCH ? 'TAP A BUTTON TO START' : 'ARROWS + ENTER, OR PRESS 1 / 2', 192, 150, '#ffffff', 1, 'c', 'plate');
   text('2 PLAYERS SHARE ONE KEYBOARD', 192, 168, '#9bf0b0', 1, 'c', 'plate');
   text('SHARDS ' + meta.shards, 192, 184, '#f2d43a', 1, 'c', 'plate');
 }
@@ -1650,7 +1683,7 @@ function drawChars() {
   });
   button('BACK', 16, 204, 70, 14, charsBack);
   button(G.np === 2 && G.pick === 0 ? 'NEXT: P2' : 'CONTINUE', 288, 204, 80, 14, charsNext);
-  text('LEFT/RIGHT CHOOSE.  ENTER CONTINUE.', 192, 228, '#9a93b3', 1, 'c');
+  text(kb('LEFT/RIGHT CHOOSE.  ENTER CONTINUE.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
 function drawLevels() {
@@ -1691,7 +1724,7 @@ function drawLevels() {
   text(G.heat ? 'HARDER HAZE. SHARDS +' + 25 * G.heat + '%' : 'NORMAL. PRESS UP FOR HEAT', 188, 186, G.heat ? '#ffb09a' : '#f1ead7');
   button('BACK', 16, 204, 70, 14, () => { SFX.ui(); go('chars'); });
   button('CONTINUE', 288, 204, 80, 14, () => { SFX.ok(); go('controls'); });
-  text('LEFT/RIGHT FLAT.  UP/DOWN HEAT.  ENTER.', 192, 228, '#9a93b3', 1, 'c');
+  text(kb('LEFT/RIGHT FLAT.  UP/DOWN HEAT.  ENTER.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
 /* ---------- controls screen: only pictures of keys ---------- */
@@ -1765,7 +1798,7 @@ function drawControls() {
   }
   button('BACK', 36, 172, 60, 14, () => { SFX.ui(); go('levels'); });
   button('START', 136, 172, 112, 14, () => { SFX.ok(); startRun(); });
-  if (Math.floor(G.t * 2) % 2 === 0) text('PRESS ENTER', 192, 214, '#ffffff', 1, 'c', 'plate');
+  if (Math.floor(G.t * 2) % 2 === 0) text(kb('PRESS ENTER'), 192, 214, '#ffffff', 1, 'c', 'plate');
 }
 
 /* ---------- boon pick ---------- */
@@ -1811,7 +1844,7 @@ function drawBoon() {
   pk.cards.forEach((c, i) => drawBoonCard(16 + i * 120, 40, 112, 142, c, pk.sel === i, i));
   button('REROLL (R): ' + run.rerolls, 132, 190, 120, 14, rerollCards);
   if (run.boons[who].length) { text('YOURS', 24, 209, '#9a93b3'); pipRow(run.boons[who], 64, 208, 'l'); }
-  text('LEFT/RIGHT CHOOSE.  ENTER TAKE.', 192, 228, '#9a93b3', 1, 'c');
+  text(kb('LEFT/RIGHT CHOOSE.  ENTER TAKE.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
 /* ---------- lift choice: a safe door or a risky one with a better reward ---------- */
@@ -1841,7 +1874,7 @@ function drawDoor() {
     text(o.name, o.x + 52, y + 12, o.col, 1, 'l');
     o.lines.forEach((ln, k) => text(ln[0], o.x + 8, y + 58 + k * 10, ln[1]));
   });
-  text('LEFT/RIGHT CHOOSE.  ENTER RIDE.', 192, 228, '#9a93b3', 1, 'c');
+  text(kb('LEFT/RIGHT CHOOSE.  ENTER RIDE.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
 /* ---------- between rounds, countdown, pause, end ---------- */
@@ -1923,7 +1956,7 @@ function drawShop() {
     text(maxed ? 'MAX' : 'COST ' + upgCost(u), 352, y + 14, maxed ? '#9bf0b0' : (afford ? '#9bf0b0' : '#ff8a7a'), 1, 'r');
   });
   button('BACK', 16, 204, 70, 14, () => { SFX.ui(); go('title'); });
-  text('UP/DOWN CHOOSE.  ENTER BUY.', 192, 228, '#9a93b3', 1, 'c');
+  text(kb('UP/DOWN CHOOSE.  ENTER BUY.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
 /* =====================================================================
@@ -2009,7 +2042,7 @@ function render() {
   }
   const hint = document.getElementById('hint');
   const playing = G.state === 'play' || G.state === 'countdown';
-  const txt = playing ? 'PAUSE: P.  SOUND: M.' : 'ARROWS + ENTER, OR CLICK / TAP.';
+  const txt = TOUCH ? (playing ? 'TURN YOUR PHONE SIDEWAYS FOR A BIGGER SCREEN.' : 'TAP THE SCREEN OR USE THE PAD. TURN SIDEWAYS FOR A BIGGER SCREEN.') : (playing ? 'PAUSE: P.  SOUND: M.' : 'ARROWS + ENTER, OR CLICK / TAP.');
   if (hint.textContent !== txt) hint.textContent = txt;
   cv.style.cursor = !playing && ui.cur.some(b => ui.mx >= b.x && ui.mx < b.x + b.w && ui.my >= b.y && ui.my < b.y + b.h) ? 'pointer' : 'default';
 }
@@ -2065,33 +2098,74 @@ cv.addEventListener('pointerdown', e => {
     if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) { b.fn(); break; }
   }
 });
-document.querySelectorAll('#touch button').forEach(b => {
-  const k = b.dataset.key;
-  const on = e => { e.preventDefault(); audioInit(); inp[0][k] = true; if (G.state !== 'play') pressed.add(k === 'act' ? 'ok' : k); b.classList.add('on'); };
-  const off = e => { e.preventDefault(); inp[0][k] = false; b.classList.remove('on'); };
-  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+// thumb pad: one touch area, direction from where the thumb sits (diagonals allowed, slides smoothly between directions)
+const padEl = document.getElementById('dpad');
+const padKeys = { left: padEl.querySelector('.l'), right: padEl.querySelector('.r'), up: padEl.querySelector('.u'), down: padEl.querySelector('.d') };
+let padId = null;
+function setPad(dirs) {
+  for (const k of ['left', 'right', 'up', 'down']) {
+    const on = !!dirs[k];
+    if (on && !inp[0][k] && G.state !== 'play') pressed.add(k);
+    inp[0][k] = on;
+    padKeys[k].classList.toggle('on', on);
+  }
+}
+function padFrom(e) {
+  const r = padEl.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const d = {};
+  if (Math.hypot(dx, dy) < r.width * 0.14) return d;                       // dead zone in the middle
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax > ay * 0.45) d[dx < 0 ? 'left' : 'right'] = true;
+  if (ay > ax * 0.45) d[dy < 0 ? 'up' : 'down'] = true;
+  return d;
+}
+padEl.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); padId = e.pointerId; try { padEl.setPointerCapture(e.pointerId); } catch (x) { /* optional */ } setPad(padFrom(e)); });
+padEl.addEventListener('pointermove', e => { if (e.pointerId === padId) setPad(padFrom(e)); });
+const padOff = e => { if (e.pointerId === padId) { padId = null; setPad({}); } };
+padEl.addEventListener('pointerup', padOff); padEl.addEventListener('pointercancel', padOff);
+document.querySelectorAll('#touch [data-tap]').forEach(b => {
+  b.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); pressed.add(b.dataset.tap); b.classList.add('on'); });
+  const off = () => b.classList.remove('on');
+  b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
 });
-if (window.matchMedia && matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0) document.getElementById('touch').hidden = false;
+document.getElementById('touch').classList.toggle('show', TOUCH);
 
 function toggleMute() {
   muted = !muted;
-  document.getElementById('mute').textContent = 'SOUND: ' + (muted ? 'OFF' : 'ON');
+  fit();
 }
 document.getElementById('mute').addEventListener('click', () => { audioInit(); toggleMute(); });
 document.getElementById('fs').addEventListener('click', () => {
-  try { const s = document.getElementById('shell'); if (document.fullscreenElement) document.exitFullscreen(); else if (s.requestFullscreen) s.requestFullscreen().catch(() => {}); } catch (e) { /* optional */ }
+  try { const s = document.getElementById('shell'); if (document.fullscreenElement) document.exitFullscreen(); else if (s.requestFullscreen) s.requestFullscreen().then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (x) { /* optional */ } }).catch(() => {}); } catch (e) { /* optional */ }
 });
 
 /* ---------- scale the canvas in whole-pixel steps ---------- */
+// counted in real device pixels, so a high-density phone screen still gets crisp, evenly sized pixels
+if (!document.fullscreenEnabled) document.getElementById('fs').style.display = 'none';
 function fit() {
-  const bar = document.getElementById('bar'), touch = document.getElementById('touch');
-  const availW = document.documentElement.clientWidth - 32;
-  const availH = window.innerHeight - bar.offsetHeight - (touch.hidden ? 0 : touch.offsetHeight + 12) - 48;
+  const bar = document.getElementById('bar'), touch = document.getElementById('touch'), shell = document.getElementById('shell');
+  const W = document.documentElement.clientWidth, H = window.innerHeight, dpr = window.devicePixelRatio || 1;
+  const mode = !TOUCH ? 'desk' : (W > H ? 'land' : 'port');
+  document.body.dataset.mode = mode;
+  shell.style.height = H + 'px';
+  document.getElementById('mute').textContent = (mode === 'land' ? 'SND: ' : 'SOUND: ') + (muted ? 'OFF' : 'ON');
+  document.getElementById('fs').textContent = mode === 'land' ? 'FULL' : 'FULLSCREEN';
+  let availW, availH;
+  if (mode === 'land') { availW = W; availH = H - 8; }
+  else if (mode === 'port') { availW = W - 8; availH = H - bar.offsetHeight - touch.offsetHeight - 40; }
+  else { availW = W - 32; availH = H - bar.offsetHeight - 48; }
   let s = Math.min(availW / VW, availH / VH);
-  s = s >= 2 ? Math.floor(s) : Math.max(0.5, s);
-  cv.style.width = Math.floor(VW * s) + 'px'; cv.style.height = Math.floor(VH * s) + 'px';
+  const d = s * dpr;
+  if (!TOUCH) s = d >= 2 ? Math.floor(d) / dpr : Math.max(0.5, s);   // desktop: whole pixel steps. Phones: use all the room, the screen is dense enough to hide the unevenness
+  const cw = Math.floor(VW * s * dpr) / dpr;
+  cv.style.width = cw + 'px'; cv.style.height = Math.floor(VH * s * dpr) / dpr + 'px';
+  if (TOUCH) {
+    // size the pad to the room beside the screen when held sideways, or to the screen width when upright
+    const k = mode === 'land' ? (W - cw) / 2 : cw;
+    touch.style.setProperty('--k', clamp(mode === 'land' ? (k - 22) / 3 : k / 7, 34, 60) + 'px');
+  }
 }
-window.addEventListener('resize', fit); document.addEventListener('fullscreenchange', fit);
+window.addEventListener('resize', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 150)); document.addEventListener('fullscreenchange', fit);
 fit();
 
 /* test and debug hooks */
@@ -2100,3 +2174,6 @@ window.__sth = { G, inp, pingEdge, pressed, update, startRun, startRound, pickCa
 requestAnimationFrame(frame);
 })();
 </script>
+
+</body>
+</html>
