@@ -108,7 +108,7 @@ body[data-ui="play"] #touch .zone { pointer-events: auto; }
 #touch .tb.on { background: var(--accent); color: #14121f; border-color: var(--accent); }
 #touch .pause { width: 13vmin; height: 13vmin; font-size: 4.4vmin; left: max(2vmin, env(safe-area-inset-left, 0px)); top: 2vmin; }
 #touch .ok { width: 30vmin; height: 16vmin; font-size: 5.5vmin; right: max(3vmin, env(safe-area-inset-right, 0px)); bottom: 4vmin; }
-#touch .call { width: 17vmin; height: 17vmin; border-radius: 50%; font-size: 8vmin; }
+#touch .call { width: 10.5vmin; height: 10.5vmin; border-radius: 50%; font-size: 5.4vmin; }
 #touch .c0 { left: max(3vmin, env(safe-area-inset-left, 0px)); border-color: #f2b134; }
 #touch .c1 { right: max(3vmin, env(safe-area-inset-right, 0px)); border-color: #4fe3ff; }
 #touch .push { width: 19vmin; height: 13vmin; border-radius: 2.4vmin; font-size: 3.6vmin; line-height: 1.25; }
@@ -116,8 +116,17 @@ body[data-ui="play"] #touch .zone { pointer-events: auto; }
 body[data-ui="menu"] #touch .pause, body[data-ui="menu"] #touch .call, body[data-ui="menu"] #touch .push { display: none; }
 body:not([data-ff="1"]) #touch .push { display: none; }
 body[data-ui="play"] #touch .ok { display: none; }
-body:not([data-np="2"]) #touch .call, body:not([data-np="2"]) #touch .push.c1 { display: none; }
+body:not([data-np="2"]) #touch .call, body[data-np="1"] #touch .push.c0 { display: none; }
+/* one player: the stick is under the left thumb, the attack button under the right */
+body[data-np="1"] #touch .push.c1 { width: 27vmin; height: 20vmin; font-size: 5vmin; right: max(4vmin, env(safe-area-inset-right, 0px)); bottom: 9vmin; top: auto; }
+body[data-np="1"] #touch .push.c1 small { font-size: 2.3vmin; }
 
+/* two players, phone upright between them: the game sits in the middle, P1's controls below it and P2's above it (turned to face P2) */
+body[data-face="1"] #bar { display: none; }
+body[data-mode="port"][data-face="1"] #shell { justify-content: center; }
+body[data-face="1"] #touch .push { width: 24vmin; height: 17vmin; font-size: 4.2vmin; }
+body[data-face="1"] #touch .push small { font-size: 2vmin; }
+body[data-face="1"] #touch .c1 { transform: rotate(180deg); }
 /* phone held upright: screen on top, thumb zones below it */
 body[data-mode="port"] #shell { justify-content: flex-start; }
 body[data-mode="port"] #bar { position: relative; z-index: 6; }
@@ -1003,7 +1012,7 @@ const specks = Array.from({ length: 40 }, () => ({ x: Math.random() * VW, y: Mat
    ===================================================================== */
 const STEP = 1 / 60;
 const PCOL = ['#f2b134', '#4fe3ff'];            // player colours: P1 amber, P2 cyan
-const G = { state: 'boot', t: 0, np: 1, ch: [0, 1], pick: 0, lv: 1, heat: 0, ff: true, tsel: 0, run: null, pk: null, door: null, shop: 0, mode: 'surv', domDur: 45, fresh: false, tut: null, intro: null };
+const G = { state: 'boot', t: 0, np: 1, ch: [0, 1], pick: 0, lv: 1, heat: 0, ff: true, tsel: 0, run: null, pk: null, door: null, shop: 0, mode: 'surv', domDur: 45, fresh: false, tut: null, intro: null, bot: false, botLvl: 1 };
 let P = null;                                    // everything about the current round
 const mkInput = () => ({ left: false, right: false, up: false, down: false, ax: 0, ay: 0 });   // ax, ay: thumb stick (-1 to 1)
 const inp = [mkInput(), mkInput()];              // one input state per player
@@ -1026,6 +1035,11 @@ try {
 function saveMeta() { try { localStorage.setItem('sth-meta', JSON.stringify(meta)); } catch (e) { /* optional */ } }
 const DOM_TIMES = [30, 45, 60, 90, 120];
 G.domDur = DOM_TIMES.includes(meta.domDur) ? meta.domDur : 45;
+G.botLvl = [0, 1, 2].includes(meta.botLvl) ? meta.botLvl : 1;
+function setBotLvl(v) { G.botLvl = v; meta.botLvl = v; saveMeta(); SFX.ui(); }
+// how many real people are playing: a bot match has two characters on screen but one pair of hands
+const humans = () => (G.np === 2 && G.bot ? 1 : G.np);
+const nm = i => (G.bot && G.mode === 'dom' && i === 1 ? 'CPU' : 'P' + (i + 1));
 function setDomDur(v) { G.domDur = v; meta.domDur = v; saveMeta(); SFX.ui(); }
 const hintsOn = () => meta.hints !== false;                 // the little list of moves shown while playing
 function toggleHints() { meta.hints = !hintsOn(); saveMeta(); SFX.ui(); }
@@ -1225,9 +1239,10 @@ function startRound() {
   P = { L, np, mp, par, tm, pl, fam, depth: d, floor: run.floors[d], boss, risk, t: 0, psi: Math.round(par.psi0), masks: [], maskTimer: dom ? 99999 : 8, evTimer: rand(par.gust[0], par.gust[1]) * mp.gust,
     surgeT: 99999, warn: 0, surge: 0, surgeLen: 9, sirenT: 0, msgs: [], parts: [], pings: [], shake: 0, tickT: 0,
     musicT: 0, musicStep: 0, countdown: 3.4, lastCount: 4, result: null, windMsg: false, score: [0, 0], pops: [], rival: dom, dom, S,
-    mobs: [], flow: [null, null], flowT: 0, spawnT: 1.8, spawned: 0, total, gap: total ? Math.max(0.35, (par.duration - 9) / total) : 99, bruteOut: false, gnawT: 0,
+    bot: dom && !!G.bot, hum: dom && G.bot ? 1 : np, mobs: [], flow: [null, null], flowT: 0, spawnT: 1.8, spawned: 0, total, gap: total ? Math.max(0.35, (par.duration - 9) / total) : 99, bruteOut: false, gnawT: 0,
     domTick: 1, domAll: [false, false], ds: [{ cap: 0, tear: 0, hits: 0 }, { cap: 0, tear: 0, hits: 0 }],
     stats: { seals: 0, fails: 0, cracks: 0, surges: 0, peak: Math.round(par.psi0), exposed: [0, 0], winds: 0, bumps: 0, snaps: 0, kills: 0 } };
+  if (P.bot) botInit();
   if (d === 0) TRACKS.game.off = TRACKS.duo.off = 0;
   if (!dom) { dropMask(true); addMsg('ROUND ' + (d + 1) + ' OF ' + ROUNDS + (boss ? '. FINAL ROUND!' : ''), boss ? '#ff8a7a' : '#f2b134'); }
   if (G.fresh) { G.fresh = false; G.tut = { i: 0, steps: buildTut() }; go('tutorial'); } else go('countdown');
@@ -1294,7 +1309,8 @@ function makeFall(q, fx, fy, by, tag) {
   SFX.scream(q.i); SFX.thud(); P.shake = Math.max(P.shake, 0.25);
   burst(P.L.ox + q.x, P.L.oy + q.y - 6, '#ffffff', 10, 40);
   P.pops.push({ x: P.L.ox + q.x, y: P.L.oy + q.y + 12, y0: P.L.oy + q.y + 12, t: 1.2, txt: 'AHHHHHH!', col: PCOL[q.i] });
-  addMsg(tag || ('P' + (by + 1) + ' PUSHED P' + (q.i + 1) + '!'), PCOL[by]);
+  if (P.bot) { if (by === 1) botSay(tag && tag.indexOf('SPEAR') >= 0 ? 'spear' : 'shove'); else botSay('hit'); }
+  addMsg(tag || (nm(by) + ' PUSHED ' + nm(q.i) + '!'), PCOL[by]);
 }
 // GET OVER HERE: double tap push. A spear on a rope flies out, drags a partner in and drops them flat.
 function fireSpear(p) {
@@ -1306,7 +1322,7 @@ function fireSpear(p) {
     const tx = c.x - p.x, ty = c.y - p.y, td = Math.hypot(tx, ty);
     if (td > 4 && td < bd && (dx * tx + dy * ty) / td > 0.87) { bd = td; best = [tx / td, ty / td]; }
   }
-  if (best) { dx = best[0]; dy = best[1]; }
+  if (best && !p.noAssist) { dx = best[0]; dy = best[1]; }
   p.spear = { st: 'out', dx, dy, len: 4, t: 0, tgt: null };
   p.shoveT = 0.2;
   SFX.spear(); SFX.getOver(p.ch.id);
@@ -1347,7 +1363,7 @@ function updateSpear(p, dt) {
         if (d < 16) { if (q.kind === 'brute') { hurtMob(q, 3, p, -dx, -dy, 12); P.pops.push({ x: P.L.ox + q.x, y: P.L.oy + q.y - 18, y0: P.L.oy + q.y - 18, t: 0.9, txt: 'SPEARED!', col: '#ffe066' }); } else killMob(q, p, 'SPEARED!'); }
       } else {
         p.spearCD = p.spearMax = 7;
-        if (d < 14) { makeFall(q, p.x, p.y, p.i, 'P' + (p.i + 1) + ' SPEARED P' + (q.i + 1) + '!'); award(p.i, 4, 'SPEAR', P.L.ox + q.x, P.L.oy + q.y - 34); }
+        if (d < 14) { makeFall(q, p.x, p.y, p.i, nm(p.i) + ' SPEARED ' + nm(q.i) + '!'); award(p.i, 4, 'SPEAR', P.L.ox + q.x, P.L.oy + q.y - 34); }
       }
     } else if (Math.random() < 0.5) P.parts.push({ x: P.L.ox + q.x, y: P.L.oy + q.y - 4, vx: rand(-10, 10), vy: rand(-10, 10), life: 0.3, max: 0.3, col: '#ffffff', sz: 1 });
   }
@@ -1361,7 +1377,7 @@ function snapFrame(w, holders) {
     if (Math.hypot(dx, dy) > 15) continue;
     const who = holders[0] ? holders[0].i : 1 - p.i;
     P.stats.snaps++; SFX.snap();
-    makeFall(p, r.x + r.w / 2, r.y + r.h / 2, who, 'P' + (who + 1) + ' FRAME SNAPPED P' + (p.i + 1) + '!');
+    makeFall(p, r.x + r.w / 2, r.y + r.h / 2, who, nm(who) + ' FRAME SNAPPED ' + nm(p.i) + '!');
   }
 }
 function roomAtPx(x, y) { const L = P.L; return L.roomFull[Math.floor(y / T) * L.W + Math.floor(x / T)]; }
@@ -1440,6 +1456,7 @@ function updatePlay(dt) {
   P.stats.peak = Math.max(P.stats.peak, P.psi);
   const psiN = P.psi / 300;
 
+  if (P.bot) botUpdate(dt);
   // players: stand still next to a window and the frame unfolds by itself
   for (const p of P.pl) {
     const k = inp[p.i];
@@ -1914,7 +1931,7 @@ function drawBottomBar() {
   } else text('SEALED ' + (L.windows.length - open) + '/' + L.windows.length, 192, BAR_Y + 5, open ? '#ff8a7a' : '#5be37d', 1, 'c');
   if (hintsOn()) {                                          // the moves and their cooldowns live in the bar, out of the way of the map
     P.pl.forEach(p => {
-      const i = p.i, k = i ? '.' : 'E', a = TOUCH ? 'PUSH' : 'PUSH ' + k, b = TOUCH ? 'SPEAR: 2X PUSH' : 'SPEAR 2X ' + k, bw = 20;
+      const i = p.i, k = i ? '.' : 'E', cpu = P.bot && i === 1, a = TOUCH || cpu ? 'PUSH' : 'PUSH ' + k, b = cpu ? 'SPEAR' : TOUCH ? 'SPEAR: 2X PUSH' : 'SPEAR 2X ' + k, bw = 20;
       const wa = textW(a), wb = textW(b), total = 4 + wa + 3 + bw + 9 + wb + 3 + bw;
       let x = i ? VW - 3 - total : 3;
       const bar = (bx, frac, active) => {
@@ -2015,10 +2032,11 @@ function drawPlay() {
     }
     if (P.np === 2) {                                       // and a tag with a pointer over the head
       const tx = fx + (p.i ? 8 : -8);                       // tags lean apart so they never cover each other
-      ctx.fillStyle = '#14121f'; ctx.fillRect(tx - 8, fy - 29, 17, 11);
-      ctx.fillStyle = PCOL[p.i]; ctx.fillRect(tx - 7, fy - 28, 15, 9);
+      const lab = P.dom ? nm(p.i) : 'P' + (p.i + 1), hw = Math.max(7, Math.ceil(textW(lab) / 2) + 2);
+      ctx.fillStyle = '#14121f'; ctx.fillRect(tx - hw - 1, fy - 29, hw * 2 + 3, 11);
+      ctx.fillStyle = PCOL[p.i]; ctx.fillRect(tx - hw, fy - 28, hw * 2 + 1, 9);
       ctx.fillRect(fx - 2, fy - 19, 5, 1); ctx.fillRect(fx - 1, fy - 18, 3, 1); ctx.fillRect(fx, fy - 17, 1, 1);
-      text('P' + (p.i + 1), tx, fy - 26, '#14121f', 1, 'c');
+      text(lab, tx, fy - 26, '#14121f', 1, 'c');
     }
   });
   drawMobs();
@@ -2116,13 +2134,14 @@ function choice(label, x, y, w, h, sel, fn) {
 }
 
 function titlePick(i) {
-  if (i === 3) { G.shop = 0; SFX.ok(); go('shop'); return; }
-  G.np = i === 0 ? 1 : 2; G.mode = i === 2 ? 'dom' : 'surv'; G.tsel = i; G.pick = 0; SFX.ok(); go('chars');
+  if (i === 4) { G.shop = 0; SFX.ok(); go('shop'); return; }
+  G.np = i === 0 ? 1 : 2; G.mode = i >= 2 ? 'dom' : 'surv'; G.bot = i === 3; G.tsel = i; G.pick = 0; SFX.ok(); go('chars');
 }
 const TITLE_OPTS = [
   ['SOLO', 'SURVIVAL', 'SURVIVE 5 ROUNDS OF HAZE MOBS'],
   ['CO-OP', 'SURVIVAL', 'TWO PLAYERS, ONE TEAM, 5 ROUNDS'],
-  ['PVP', 'DOMINATION', 'FIGHT OVER THE WINDOWS FOR POINTS'],
+  ['PVP', 'VS FRIEND', 'DOMINATION: FIGHT FOR THE WINDOWS'],
+  ['PVP', 'VS CPU', 'DOMINATION AGAINST THE COMPUTER'],
   ['WORKSHOP', 'UPGRADES', 'SPEND SHARDS ON UPGRADES']
 ];
 function drawTitle() {
@@ -2132,23 +2151,23 @@ function drawTitle() {
   ctx.fillStyle = '#14121f'; ctx.fillRect(0, 206, VW, VH - 206);
   ctx.fillStyle = '#3a3650'; ctx.fillRect(0, 206, VW, 2);
   CHARS.forEach((c, i) => drawChar(ctx, c, 150 + i * 42, 234, 'd', 0, 2, true));
-  const y = 14 + Math.round(Math.sin(G.t * 2) * 2);
+  const y = 9 + Math.round(Math.sin(G.t * 2) * 1.2);
   text('SEAL THE', 192, y, '#f2b134', 4, 'c', '#7a3a10');
   text('HAZE', 192, y + 36, '#f2b134', 4, 'c', '#7a3a10');
   text('A SINGAPORE HAZE SURVIVAL GAME', 192, 80, '#f1ead7', 1, 'c', 'plate');
   TITLE_OPTS.forEach((o, i) => {
-    const x = 38 + (i % 2) * 160, yy = 96 + Math.floor(i / 2) * 27, w = 148, h = 23, sel = G.tsel === i;
+    const wide = i === 4, x = wide ? 38 : 38 + (i % 2) * 160, yy = 90 + (wide ? 2 : Math.floor(i / 2)) * 23, w = wide ? 308 : 148, h = 21, sel = G.tsel === i;
     const hov = hitArea(x, yy, w, h, () => titlePick(i));
     ctx.fillStyle = sel ? '#f2b134' : '#2a2740'; ctx.fillRect(x, yy, w, h);
     ctx.fillStyle = sel ? '#14121f' : (hov ? '#f2b134' : '#3a3650');
     ctx.fillRect(x, yy, w, 1); ctx.fillRect(x, yy + h - 1, w, 1); ctx.fillRect(x, yy, 1, h); ctx.fillRect(x + w - 1, yy, 1, h);
-    text(o[0], x + w / 2, yy + 4, sel ? '#14121f' : '#f2b134', 1, 'c');
-    text(o[1], x + w / 2, yy + 13, sel ? '#14121f' : '#f1ead7', 1, 'c');
+    text(o[0], x + w / 2, yy + 3, sel ? '#14121f' : '#f2b134', 1, 'c');
+    text(o[1], x + w / 2, yy + 12, sel ? '#14121f' : '#f1ead7', 1, 'c');
   });
-  text(TITLE_OPTS[G.tsel][2], 192, 154, '#9bf0b0', 1, 'c', 'plate');
-  if (Math.floor(G.t * 2) % 2 === 0) text(TOUCH ? 'TAP A MODE TO START' : 'ARROWS + ENTER, OR PRESS 1 / 2 / 3', 192, 170, '#ffffff', 1, 'c', 'plate');
-  text('2 PLAYERS SHARE ONE KEYBOARD', 192, 184, '#9a93b3', 1, 'c', 'plate');
-  text('SHARDS ' + meta.shards, 192, 196, '#f2d43a', 1, 'c', 'plate');
+  text(TITLE_OPTS[G.tsel][2], 192, 160, '#9bf0b0', 1, 'c', 'plate');
+  if (Math.floor(G.t * 2) % 2 === 0) text(TOUCH ? 'TAP A MODE TO START' : 'ARROWS + ENTER, OR PRESS 1 / 2 / 3 / 4', 192, 172, '#ffffff', 1, 'c', 'plate');
+  text('2 PLAYERS SHARE ONE KEYBOARD', 192, 183, '#9a93b3', 1, 'c', 'plate');
+  text('SHARDS ' + meta.shards, 192, 194, '#f2d43a', 1, 'c', 'plate');
 }
 
 function charsNext() {
@@ -2160,7 +2179,7 @@ function charsBack() { SFX.ui(); if (G.pick === 1) G.pick = 0; else go('title');
 function drawChars() {
   menuBackdrop(0.5);
   const col = G.np === 2 ? PCOL[G.pick] : '#f2b134';
-  text((G.np === 2 ? 'P' + (G.pick + 1) + ': ' : '') + 'CHOOSE YOUR HOMEOWNER', 192, 8, col, 2, 'c', '#000');
+  text(G.bot && G.pick === 1 ? 'CPU: CHOOSE THE OPPONENT' : (G.np === 2 ? 'P' + (G.pick + 1) + ': ' : '') + 'CHOOSE YOUR HOMEOWNER', 192, 8, col, 2, 'c', '#000');
   CHARS.forEach((c, i) => {
     const x = 16 + i * 120, y = 34, w = 112, h = 164, sel = G.ch[G.pick] === i;
     const hov = hitArea(x, y, w, h, () => { if (G.ch[G.pick] === i) charsNext(); else { G.ch[G.pick] = i; SFX.ui(); } });
@@ -2176,11 +2195,11 @@ function drawChars() {
     c.lines.forEach((ln, k) => text(ln, x + 8, y + 126 + k * 9, k === 0 ? '#9bf0b0' : '#ffb09a'));
     if (G.np === 2) {
       if (G.pick === 1 && G.ch[0] === i) text('P1', x + 5, y + 5, PCOL[0], 1, 'l', '#000');
-      if (sel) text('P' + (G.pick + 1), x + w - 5, y + 5, PCOL[G.pick], 1, 'r', '#000');
+      if (sel) text(G.bot && G.pick === 1 ? 'CPU' : 'P' + (G.pick + 1), x + w - 5, y + 5, PCOL[G.pick], 1, 'r', '#000');
     }
   });
   button('BACK', 16, 204, 70, 14, charsBack);
-  button(G.np === 2 && G.pick === 0 ? 'NEXT: P2' : 'CONTINUE', 288, 204, 80, 14, charsNext);
+  button(G.np === 2 && G.pick === 0 ? (G.bot ? 'NEXT: CPU' : 'NEXT: P2') : 'CONTINUE', 288, 204, 80, 14, charsNext);
   text(kb('LEFT/RIGHT CHOOSE.  ENTER CONTINUE.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
@@ -2188,8 +2207,8 @@ function drawLevels() {
   menuBackdrop(0.6);
   const dom = G.mode === 'dom';
   text(dom ? 'CHOOSE THE BATTLEFIELD' : 'CHOOSE YOUR FLAT', 192, 4, '#f2b134', 2, 'c', '#000');
-  const team = G.np === 2 ? CHARS[G.ch[0]].name + ' + ' + CHARS[G.ch[1]].name : CHARS[G.ch[0]].name;
-  text((dom ? 'PVP: ' : G.np === 2 ? 'CO-OP: ' : 'SOLO: ') + team, 192, 24, dom ? '#ff8a7a' : (G.np === 2 ? '#9bf0b0' : '#c9c3dc'), 1, 'c', 'plate');
+  const team = G.np === 2 ? CHARS[G.ch[0]].name + (G.bot ? ' VS ' : ' + ') + CHARS[G.ch[1]].name : CHARS[G.ch[0]].name;
+  text((dom ? (G.bot ? 'VS CPU: ' : 'PVP: ') : G.np === 2 ? 'CO-OP: ' : 'SOLO: ') + team, 192, 24, dom ? '#ff8a7a' : (G.np === 2 ? '#9bf0b0' : '#c9c3dc'), 1, 'c', 'plate');
   DIFFS.forEach((D, i) => {
     const x = 16 + i * 120, y = 36, w = 112, h = 140, sel = G.lv === i, lays = LAYOUTS[D.key];
     const hov = hitArea(x, y, w, h, () => { if (G.lv === i) { SFX.ok(); go('controls'); } else { G.lv = i; SFX.ui(); } });
@@ -2229,9 +2248,13 @@ function drawLevels() {
     text(G.heat ? 'HARDER HAZE. SHARDS +' + 25 * G.heat + '%' : 'NORMAL. PRESS UP FOR HEAT', 188, 186, G.heat ? '#ffb09a' : '#f1ead7');
   }
   button('BACK', 8, 204, 50, 14, () => { SFX.ui(); go('chars'); });
-  button('MOVE HINTS: ' + (hintsOn() ? 'ON' : 'OFF'), 64, 204, 118, 14, toggleHints);
+  button('MOVE HINTS: ' + (hintsOn() ? 'ON' : 'OFF'), 64, 204, G.bot ? 104 : 118, 14, toggleHints);
+  if (G.bot) {                                         // how good the computer is
+    text('CPU', 172, 207, '#f2b134');
+    BOT_LV.forEach((b, k) => choice(k === 1 ? 'NORM' : b.name, 194 + k * 38, 204, 36, 14, G.botLvl === k, () => setBotLvl(k)));
+  }
   button('CONTINUE', 312, 204, 64, 14, () => { SFX.ok(); go('controls'); });
-  text(kb(dom ? 'LEFT/RIGHT FLAT.  UP/DOWN MATCH TIME.  ENTER.' : 'LEFT/RIGHT FLAT.  UP/DOWN HEAT.  ENTER.'), 192, 228, '#9a93b3', 1, 'c');
+  text(kb(dom ? (G.bot ? 'LEFT/RIGHT FLAT.  UP/DOWN TIME.  B CPU LEVEL.  ENTER.' : 'LEFT/RIGHT FLAT.  UP/DOWN MATCH TIME.  ENTER.') : 'LEFT/RIGHT FLAT.  UP/DOWN HEAT.  ENTER.'), 192, 228, '#9a93b3', 1, 'c');
 }
 
 /* ---------- controls screen: only pictures of keys ---------- */
@@ -2289,14 +2312,15 @@ function stickIcon(cx, cy, col) {
   disc(cx, cy, 17, col); disc(cx, cy, 15, '#14121f');
   const a = G.t * 2.2; disc(Math.round(cx + Math.cos(a) * 7), Math.round(cy + Math.sin(a) * 7), 8, col);
 }
+const touchSide = i => window.innerHeight > window.innerWidth ? (i ? 'P2 TOP EDGE' : 'P1 BOTTOM EDGE') : (i ? 'P2 RIGHT THUMB' : 'P1 LEFT THUMB');
 function drawControls() {
   menuBackdrop(0.7);
   panel(24, 12, 336, 190, '#1d1b2e', '#f2b134');
   text('CONTROLS', 192, 20, '#f2b134', 2, 'c');
-  const walking = (G.t % 5) < 1.8, two = G.np === 2;
+  const walking = (G.t % 5) < 1.8, two = humans() === 2;
   const dn = [walking, false, false, false];
   if (!two) {
-    if (TOUCH) { stickIcon(118, 80, '#f2b134'); text('SLIDE TO MOVE', 118, 112, '#f1ead7', 1, 'c'); }
+    if (TOUCH) { stickIcon(118, 80, '#f2b134'); text('LEFT THUMB: MOVE', 118, 112, '#f1ead7', 1, 'c'); }
     else {
       cluster(72, 66, 'wasd', '#f2b134', dn);
       text('OR', 118, 83, '#9a93b3', 1, 'c');
@@ -2304,7 +2328,7 @@ function drawControls() {
       text('MOVE', 118, 112, '#f1ead7', 1, 'c');
     }
     drawDemo(212, 46, 132, 92, CHARS[G.ch[0]]);
-    if (TOUCH) { disc(86, 144, 7, '#f2b134'); text('P', 86, 141, '#14121f', 1, 'c'); text('PUSH / 2X SPEAR', 98, 141, '#f1ead7', 1, 'l'); }
+    if (TOUCH) { disc(250, 152, 8, '#f2b134'); text('P', 250, 149, '#14121f', 1, 'c'); text('RIGHT THUMB: PUSH', 264, 146, '#f1ead7', 1, 'l'); text('TAP TWICE: SPEAR', 264, 156, '#f2b134', 1, 'l'); }
     else { keycap(60, 136, 'E', '#f2b134', false); text('PUSH / 2X SPEAR', 80, 140, '#f1ead7', 1, 'l'); }
   } else {
     // one card per player: coloured header, their own character, their own keys
@@ -2312,7 +2336,7 @@ function drawControls() {
       const bx = i === 0 ? 30 : 246, by = 38, bw = 108, cx = bx + bw / 2, col = PCOL[i], ch = CHARS[G.ch[i]];
       ctx.fillStyle = col; ctx.fillRect(bx - 2, by - 2, bw + 4, 134);
       ctx.fillStyle = '#14121f'; ctx.fillRect(bx, by + 12, bw, 118);
-      text(TOUCH ? (i === 0 ? 'P1 LEFT THUMB' : 'P2 RIGHT THUMB') : 'PLAYER ' + (i + 1), cx, by + 2, '#14121f', 1, 'c');
+      text(TOUCH ? touchSide(i) : 'PLAYER ' + (i + 1), cx, by + 2, '#14121f', 1, 'c');
       drawChar(ctx, ch, cx, by + 52, 'd', 0, 2);
       text(ch.name, cx, by + 57, '#f1ead7', 1, 'c');
       const pu = true;
@@ -2332,7 +2356,9 @@ function drawControls() {
     drawDemo(152, 56, 80, 84, CHARS[G.ch[0]]);
   }
   button('BACK', 36, 176, 60, 14, () => { SFX.ui(); go('levels'); });
-  text(G.mode === 'dom' ? 'PUSH AND SPEAR HIT YOUR RIVAL. MOST POINTS WINS.' : (two ? 'PUSH AND SPEAR HIT HAZE MOBS. WORK TOGETHER.' : 'PUSH AND SPEAR HIT HAZE MOBS. SURVIVE 5 ROUNDS.'), 192, 194, '#9a93b3', 1, 'c');
+  if (G.bot) text('BEAT THE CPU. PUSH AND SPEAR HIT IT. MOST POINTS WINS.', 192, 194, '#9a93b3', 1, 'c');
+  else if (TOUCH && two) text(window.innerHeight > window.innerWidth ? 'LAY THE PHONE BETWEEN YOU. P2 PLAYS UPSIDE DOWN.' : 'TURN THE PHONE UPRIGHT TO SIT FACE TO FACE.', 192, 194, '#f2b134', 1, 'c');
+  else text(G.mode === 'dom' ? 'PUSH AND SPEAR HIT YOUR RIVAL. MOST POINTS WINS.' : (two ? 'PUSH AND SPEAR HIT HAZE MOBS. WORK TOGETHER.' : 'PUSH AND SPEAR HIT HAZE MOBS. SURVIVE 5 ROUNDS.'), 192, 194, '#9a93b3', 1, 'c');
   button('START', 136, 176, 112, 14, () => { SFX.ok(); beginGame(true); });
   if (Math.floor(G.t * 2) % 2 === 0) text(kb('PRESS ENTER'), 192, 214, '#ffffff', 1, 'c', 'plate');
 }
@@ -2443,14 +2469,15 @@ function drawCountdown() {
     text('FLOOR ' + P.floor + '.  ' + P.L.name + (P.boss ? '.  FINAL ROUND' : P.risk ? '.  HAZY LIFT' : ''), 192, 58, P.boss ? '#ff8a7a' : P.risk ? '#f2b134' : '#c9c3dc', 1, 'c', 'plate');
   }
   text(lab, 192, 98, '#f2b134', 6, 'c', '#000');
-  for (let i = 0; i < P.np; i++) {                           // one card per player: who they are and what their keys do
-    const cx = P.np === 2 ? (i ? 288 : 96) : 192, w = 148, y = 168, h = TOUCH ? 16 : 43;
+  if (P.bot) text('CPU: ' + P.pl[1].ch.name + ', ' + P.ai.lv.name + ', ' + P.ai.st.id + ' (' + P.ai.st.txt + ')', 192, 72, PCOL[1], 1, 'c', 'plate');
+  for (let i = 0; i < P.hum; i++) {                           // one card per human player: who they are and what their keys do
+    const cx = P.hum === 2 ? (i ? 288 : 96) : 192, w = 148, y = 168, h = TOUCH ? 16 : 43;
     ctx.fillStyle = PCOL[i]; ctx.fillRect(cx - w / 2 - 2, y - 2, w + 4, h + 4);
     ctx.fillStyle = '#14121f'; ctx.fillRect(cx - w / 2, y, w, h);
-    if (TOUCH) text(P.np === 2 ? (i ? 'P2  RIGHT THUMB' : 'P1  LEFT THUMB') : 'LEFT THUMB TO MOVE', cx, y + 4, PCOL[i], 1, 'c');
+    if (TOUCH) text(P.hum === 2 ? touchSide(i) : 'LEFT: MOVE   RIGHT: PUSH', cx, y + 4, PCOL[i], 1, 'c');
     else {
-      text(P.np === 2 ? (i ? 'P2  ARROWS' : 'P1  W A S D') : 'W A S D OR ARROWS', cx, y + 5, PCOL[i], 1, 'c');
-      text((P.np === 2 ? (i ? '/ CALL  . PUSH' : 'Q CALL  E PUSH') : 'E PUSH'), cx, y + 18, '#f1ead7', 1, 'c');
+      text(P.hum === 2 ? (i ? 'P2  ARROWS' : 'P1  W A S D') : 'W A S D OR ARROWS', cx, y + 5, PCOL[i], 1, 'c');
+      text((P.hum === 2 ? (i ? '/ CALL  . PUSH' : 'Q CALL  E PUSH') : 'E OR . PUSH'), cx, y + 18, '#f1ead7', 1, 'c');
       text('DOUBLE TAP ' + (i ? '.' : 'E') + ': SPEAR', cx, y + 31, '#f2b134', 1, 'c');
     }
   }
@@ -2997,7 +3024,7 @@ function drawDomHUD() {
   const held = [0, 0]; for (const w of P.L.windows) if (w.owner >= 0) held[w.owner]++;
   P.pl.forEach((p, i) => {
     const l = i === 0, x = l ? 5 : 379, s = String(sc[i]);
-    text('P' + (i + 1) + ' ' + p.ch.name, x, 3, PCOL[i], 1, l ? 'l' : 'r');
+    text(nm(i) + ' ' + p.ch.name, x, 3, PCOL[i], 1, l ? 'l' : 'r');
     text(s, x, 13, PCOL[i], 2, l ? 'l' : 'r', '#000');
     if (sc[i] > sc[1 - i]) drawCrown(l ? 5 + textW(s, 2) + 6 : 379 - textW(s, 2) - 13, 16, '#ffe066');
   });
@@ -3035,14 +3062,15 @@ function domWindows(dt) {
       SFX.seal(); burst(L.ox + w.rect.x + w.rect.w / 2, L.oy + w.rect.y + w.rect.h / 2, PCOL[side], 14, 50);
       P.ds[side].cap++;
       if (P.t - w.bt[side] > 5) { award(side, 3, 'CAPTURE ' + name, cx, cy); w.bt[side] = P.t; }
-      addMsg('P' + (side + 1) + ' CAPTURED WINDOW ' + name, PCOL[side]);
+      addMsg(nm(side) + ' CAPTURED WINDOW ' + name, PCOL[side]);
+      if (P.bot && side === 1) botSay('cap');
       snapFrame(w, [P.pl[side]]);
     } else if (w.owner >= 0 && ((w.owner === 0 && w.cv > -0.02) || (w.owner === 1 && w.cv < 0.02))) {
       const old = w.owner, by = 1 - old;
       w.owner = -1; w.sealed = false; w.life = 0; w.failFlash = 0.7; SFX.crack(); P.shake = Math.max(P.shake, 0.12);
       P.ds[by].tear++;
       if (P.t - w.bt[by] > 5) { award(by, 3, 'TEARDOWN ' + name, cx, cy); w.bt[by] = P.t; }
-      addMsg('P' + (by + 1) + ' TORE DOWN WINDOW ' + name, PCOL[by]);
+      addMsg(nm(by) + ' TORE DOWN WINDOW ' + name, PCOL[by]);
     }
     if (w.flash > 0) w.flash -= dt;
     if (w.failFlash > 0) w.failFlash -= dt;
@@ -3062,7 +3090,7 @@ function domWindows(dt) {
     for (let i = 0; i < 2; i++) if (c[i]) {
       const bonus = c[i] === n ? Math.ceil(c[i] * 0.5) : 0;      // holding every window pays extra, like holding every flag
       P.score[i] += c[i] + bonus;
-      if (bonus && !P.domAll[i]) { P.domAll[i] = true; addMsg('P' + (i + 1) + ' DOMINATES! ALL WINDOWS HELD', PCOL[i]); }
+      if (bonus && !P.domAll[i]) { P.domAll[i] = true; addMsg(nm(i) + ' DOMINATES! ALL WINDOWS HELD', PCOL[i]); }
       if (!bonus) P.domAll[i] = false;
     } else P.domAll[i] = false;
   }
@@ -3082,12 +3110,13 @@ function drawDomEnd() {
     return;
   }
   panel(60, 20, 264, 190, '#1d1b2e', r.hero >= 0 ? PCOL[r.hero] : '#9a93b3');
-  text(r.hero >= 0 ? 'P' + (r.hero + 1) + ' DOMINATES!' : 'A DEAD HEAT!', 192, 28, r.hero >= 0 ? PCOL[r.hero] : '#f1ead7', 2, 'c');
+  text(r.hero >= 0 ? (P.bot ? (r.hero === 0 ? 'YOU DOMINATE!' : 'CPU DOMINATES!') : 'P' + (r.hero + 1) + ' DOMINATES!') : 'A DEAD HEAT!', 192, 28, r.hero >= 0 ? PCOL[r.hero] : '#f1ead7', 2, 'c');
   if (r.hero >= 0) text('HAZE HERO: ' + CHARS[G.ch[r.hero]].name, 192, 48, '#f1ead7', 1, 'c');
   else text('NOBODY OWNS THE HAZE', 192, 48, '#9a93b3', 1, 'c');
+  if (P.bot) text('CPU LEVEL: ' + P.ai.lv.name + '.  STYLE: ' + P.ai.st.id, 192, 160, '#9a93b3', 1, 'c');
   [0, 1].forEach(i => {
     const x = i ? 300 : 84, al = i ? 'r' : 'l', ds = P.ds[i];
-    text('P' + (i + 1) + ' ' + CHARS[G.ch[i]].name, x, 66, PCOL[i], 1, al);
+    text(nm(i) + ' ' + CHARS[G.ch[i]].name, x, 66, PCOL[i], 1, al);
     text(String(r.score[i]), x, 78, PCOL[i], 3, al, '#000');
     if (r.hero === i) drawCrown(i ? 300 - textW(String(r.score[i]), 3) - 12 : 84 + textW(String(r.score[i]), 3) + 6, 82, '#ffe066');
     text('CAPTURES  ' + ds.cap, x, 108, '#f1ead7', 1, al); text('TEARDOWNS  ' + ds.tear, x, 119, '#f1ead7', 1, al); text('KNOCKDOWNS  ' + ds.hits, x, 130, '#f1ead7', 1, al);
@@ -3272,17 +3301,17 @@ function bootGo() { if (G.t > 0.2 && G.state === 'boot') go('title'); }
 let tutCv = null;
 const tr = (x, y, w, h) => [Math.round(x), Math.round(y), Math.round(w), Math.round(h)];
 function buildTut() {
-  const L = P.L, ox = L.ox, oy = L.oy, np = P.np, dom = P.dom, steps = [];
+  const L = P.L, ox = L.ox, oy = L.oy, np = P.hum, dom = P.dom, steps = [], rv = P.bot ? 'THE CPU' : 'YOUR RIVAL';
   const pR = () => P.pl.map(p => tr(ox + p.x - 10, oy + p.y - 34, 20, 38));   // tall enough to include the P1 / P2 tag
   const wR = () => L.windows.map(w => tr(ox + w.rect.x - 2, oy + w.rect.y - 2, w.rect.w + 4, w.rect.h + 4));
   const move = TOUCH ? 'YOUR THUMB STICK' : (np === 2 ? 'W A S D (P1) OR ARROWS (P2)' : 'W A S D OR THE ARROWS');
   const pk = np === 2 ? [[['E'], 'P1 PUSH'], [['E', 'E'], 'P1 SPEAR'], [['.'], 'P2 PUSH'], [['.', '.'], 'P2 SPEAR']] : [[['E'], 'PUSH'], [['E', 'E'], 'SPEAR']];
-  steps.push({ tag: np === 2 ? 'PLAYERS' : 'YOU', title: np === 2 ? (dom ? 'TWO RIVALS' : 'TWO HOMEOWNERS') : 'THIS IS YOU', lines: ['MOVE WITH ' + move + '.', 'STAND STILL TO WORK. YOU CAN ONLY SEAL WHEN YOU ARE NOT WALKING.'], rects: pR });
+  steps.push({ tag: P.bot ? 'YOU + CPU' : (np === 2 ? 'PLAYERS' : 'YOU'), title: P.bot ? 'YOU VS THE CPU' : (np === 2 ? (dom ? 'TWO RIVALS' : 'TWO HOMEOWNERS') : 'THIS IS YOU'), lines: P.bot ? ['YOU ARE P1 (ORANGE). THE CPU IS CYAN, A ' + P.ai.st.id + ' ON ' + P.ai.lv.name + '.', 'MOVE WITH ' + move + '. STAND STILL TO WORK.'] : ['MOVE WITH ' + move + '.', 'STAND STILL TO WORK. YOU CAN ONLY SEAL WHEN YOU ARE NOT WALKING.'], rects: pR });
   if (dom) {
     steps.push({ tag: 'WINDOWS = FLAGS', title: 'CAPTURE WINDOWS', lines: ['EVERY WINDOW STARTS NEUTRAL.', 'STAND STILL NEXT TO ONE AND IT SEALS IN YOUR COLOUR.', 'EACH LETTER IS A WINDOW. A BAR SHOWS WHO IS WINNING IT.'], rects: wR });
-    steps.push({ tag: 'ENEMY SEAL', title: 'TEAR DOWN SEALS', lines: ['STAND AT YOUR RIVAL\'S WINDOW TO TEAR THE SEAL DOWN, THEN SEAL IT AS YOURS.', 'IF BOTH OF YOU STAND THERE, IT IS CONTESTED.'], rects: wR });
+    steps.push({ tag: 'ENEMY SEAL', title: 'TEAR DOWN SEALS', lines: ['STAND AT ' + (P.bot ? 'THE CPU\'S' : 'YOUR RIVAL\'S') + ' WINDOW TO TEAR THE SEAL DOWN, THEN SEAL IT AS YOURS.', 'IF BOTH OF YOU STAND THERE, IT IS CONTESTED.'], rects: wR });
     steps.push({ tag: 'SCORE', title: 'EARN POINTS', lines: ['EVERY WINDOW YOU HOLD GIVES 1 POINT EVERY SECOND.', 'HOLD THEM ALL FOR A BONUS. CAPTURES AND TEARDOWNS PAY EXTRA.'], rects: () => [tr(0, 0, 112, 32), tr(272, 0, 112, 32)] });
-    steps.push({ tag: 'FIGHT', title: 'PUSH AND SPEAR', lines: ['SHOVE YOUR RIVAL OFF A WINDOW WITH PUSH. IT STOPS THEIR SEAL.', 'TAP PUSH TWICE FOR THE SPEAR: GET OVER HERE!'], rects: pR, keys: pk });
+    steps.push({ tag: 'FIGHT', title: 'PUSH AND SPEAR', lines: ['SHOVE ' + rv + ' OFF A WINDOW WITH PUSH. IT STOPS THEIR SEAL.', 'TAP PUSH TWICE FOR THE SPEAR: GET OVER HERE!'], rects: pR, keys: pk });
     steps.push({ tag: 'TIMER', title: 'BEAT THE CLOCK', lines: ['MOST POINTS WHEN THE TIMER HITS ZERO WINS.', 'THIS MATCH IS ' + P.par.duration + ' SECONDS.'], rects: () => [tr(150, 0, 84, 20)] });
   } else {
     steps.push({ tag: 'OPEN WINDOWS', title: 'SEAL THE WINDOWS', lines: ['HAZE POURS IN THROUGH OPEN WINDOWS (RED STRIPE).', 'STAND STILL NEXT TO ONE AND YOUR SEAL FRAME UNFOLDS BY ITSELF.', 'THE STRIP TURNS GREEN WHEN SEALED, THEN WEARS DOWN.'], rects: wR });
@@ -3351,6 +3380,177 @@ function drawTutorial() {
 }
 
 /* =====================================================================
+   PVP BOT: a computer rival for Domination.
+   Built from how classic shooter bots are tuned (Unreal Tournament, Counter-Strike) and how Domination is played in Call of Duty:
+   - the level changes behaviour only: reaction time, aim error, how well it leads and dodges a spear, how often it fights, how fast it walks.
+     It never gets faster capture rates or hidden bonuses, so a win is always earned.
+   - each match it rolls a play style (rusher, capturer, defender, all-rounder) that weights what it wants, like a bot personality.
+   - it scores every window and the player in one go: neutral windows, the player's seals, its own seals under attack (defend),
+     with a bias to keep its last choice so it does not dither. It also gets stuck sometimes, like real bots, and drops that target for a while.
+   ===================================================================== */
+const BOT_LV = [
+  { name: 'EASY',   react: 0.55, aim: 0.40, lead: 0,   spd: 0.80, dodge: 0,    push: 0.5,  spear: 0.10, err: 0.30, idle: 0.22 },
+  { name: 'NORMAL', react: 0.30, aim: 0.14, lead: 0.5, spd: 0.92, dodge: 0.30, push: 0.8,  spear: 0.35, err: 0.12, idle: 0.07 },
+  { name: 'HARD',   react: 0.14, aim: 0.03, lead: 1,   spd: 1.00, dodge: 0.75, push: 0.97, spear: 0.70, err: 0.03, idle: 0 }
+];
+const BOT_STYLE = [
+  { id: 'RUSHER',      hunt: 1.9, def: 0.6, cap: 0.9, txt: 'HUNTS YOU DOWN' },
+  { id: 'CAPTURER',    hunt: 0.4, def: 0.8, cap: 1.5, txt: 'GRABS WINDOWS' },
+  { id: 'DEFENDER',    hunt: 0.8, def: 1.9, cap: 1.0, txt: 'GUARDS ITS SEALS' },
+  { id: 'ALL-ROUNDER', hunt: 1.0, def: 1.0, cap: 1.0, txt: 'A BIT OF EVERYTHING' }
+];
+const BOT_SAY = {
+  cap: ['MINE!', 'SEALED!', 'NICE WINDOW!'], shove: ['TOO SLOW!', 'MOVE ALONG!', 'EXCUSE ME!'], spear: ['GOTCHA!', 'COME HERE!'], hit: ['HEY!', 'OOF!', 'RUDE!']
+};
+function botInit() {
+  P.ai = { lv: BOT_LV[G.botLvl], st: BOT_STYLE[irand(0, BOT_STYLE.length - 1)], think: 0.4, tgt: null, path: [], stuck: 0, lx: 0, ly: 0,
+    clash: 0, dodgeT: 0, dodgeX: 0, dodgeY: 0, dodgeSeen: -1, willDodge: false, idleT: 0, say: 3, inRange: false, rt: 0, willShove: false, spearT: 1.5, ban: {} };
+}
+function botSay(kind) {
+  const A = P.ai; if (!A || A.say > 0) return;
+  const me = P.pl[1], arr = BOT_SAY[kind];
+  A.say = 5;
+  P.pops.push({ x: P.L.ox + me.x, y: P.L.oy + me.y - 36, y0: P.L.oy + me.y - 36, t: 1.2, txt: arr[irand(0, arr.length - 1)], col: PCOL[1] });
+}
+function botBfs(sx, sy) {
+  const L = P.L, W = L.W, H = L.H, dist = new Int16Array(W * H).fill(-1), prev = new Int32Array(W * H).fill(-1);
+  const q = [sy * W + sx]; dist[q[0]] = 0;
+  for (let h = 0; h < q.length; h++) {
+    const c = q[h], cx = c % W, cy = (c / W) | 0;
+    for (const [ax, ay] of N4) {
+      const nx = cx + ax, ny = cy + ay;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const n = ny * W + nx;
+      if (dist[n] !== -1 || L.solid[n]) continue;
+      dist[n] = dist[c] + 1; prev[n] = c; q.push(n);
+    }
+  }
+  return { dist, prev };
+}
+function botLos(a, b) {                                      // is the straight line between two points clear of walls and furniture?
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), n = Math.max(1, Math.floor(d / 4));
+  for (let i = 1; i < n; i++) if (hitSolid(a.x + dx * i / n, a.y + dy * i / n)) return false;
+  return true;
+}
+function botThink() {
+  const A = P.ai, lv = A.lv, st = A.st, me = P.pl[1], foe = P.pl[0], L = P.L, W = L.W;
+  A.think = lv.react * 0.5 + rand(0.05, 0.15);
+  const tx = clamp(Math.floor(me.x / T), 0, W - 1), ty = clamp(Math.floor(me.y / T), 0, L.H - 1);
+  const { dist, prev } = botBfs(tx, ty);
+  let best = null, bs = 0.001;
+  for (const w of L.windows) {
+    if ((A.ban[w.i] || 0) > P.t) continue;
+    const mine = w.owner === 1, secure = mine && Math.abs(w.cv) > 0.999;
+    const foeOn = foe.deploy === w || (foe.nw === w && !foe.moving && foe.fall <= 0);
+    let val = 0;
+    if (w.owner < 0) val = 5 * st.cap;                        // neutral: take it
+    else if (w.owner === 0) val = 6 * st.cap;                 // the player's seal: tear it down
+    else if (!secure) val = 4;                                // mine but not finished or worn: finish it
+    if (mine && foeOn) val += 6 * st.def;                     // the player is tearing my seal: defend it
+    if (val <= 0) continue;
+    let bd = 1e9, bt = null;
+    for (const [ax, ay] of w.access) { const d = dist[ay * W + ax]; if (d >= 0 && d < bd) { bd = d; bt = [ax, ay]; } }
+    if (!bt) continue;
+    let sc = val / (bd + 6) * (1 + lv.err * rand(-1, 1));
+    if (A.tgt && A.tgt.w === w) sc *= 1.35;                   // stick with a choice unless something is clearly better
+    if (sc > bs) { bs = sc; best = { w, tile: bt }; }
+  }
+  const fd = dist[clamp(Math.floor(foe.y / T), 0, L.H - 1) * W + clamp(Math.floor(foe.x / T), 0, W - 1)];
+  if (fd >= 0 && foe.fall <= 0) {                             // going after the player, strongest when they are busy sealing
+    const hv = (foe.deploy ? 7 : (best ? 2.5 : 4.5)) * st.hunt;
+    let sc = hv / (fd + 5) * (1 + lv.err * rand(-1, 1));
+    if (A.tgt && A.tgt.h) sc *= 1.35;
+    if (sc > bs) { bs = sc; best = { h: true, tile: [clamp(Math.floor(foe.x / T), 0, W - 1), clamp(Math.floor(foe.y / T), 0, L.H - 1)] }; }
+  }
+  A.tgt = best; A.path = [];
+  if (!best) return;
+  let c = best.tile[1] * W + best.tile[0];
+  const guard = W * L.H;
+  for (let g = 0; c >= 0 && c !== ty * W + tx && g < guard; g++) { A.path.push({ x: (c % W) * T + 4, y: ((c / W) | 0) * T + 4 }); c = prev[c]; }
+  A.path.reverse();
+}
+function botUpdate(dt) {
+  const A = P.ai, lv = A.lv, me = P.pl[1], foe = P.pl[0], k = inp[1];
+  k.left = k.right = k.up = k.down = false; k.ax = 0; k.ay = 0;
+  me.noAssist = true;
+  A.say -= dt; A.spearT -= dt;
+  if (me.fall > 0 || me.pull >= 0 || me.spear || P.countdown > 0) return;
+  const dx = foe.x - me.x, dy = foe.y - me.y, d = Math.hypot(dx, dy), foeSafe = foe.fall > 0 || foe.fallImm > 0 || foe.inv > 0;
+
+  // dodging the player's spear: a good bot sees the rope coming and steps off the line
+  const fs = foe.spear;
+  if (fs && fs.st === 'out' && lv.dodge > 0) {
+    const px = me.x - foe.x, py = me.y - foe.y, along = px * fs.dx + py * fs.dy, perp = px * fs.dy - py * fs.dx;
+    if (along > 0 && along < 110 && Math.abs(perp) < 10) {
+      if (A.dodgeSeen < 0) { A.dodgeSeen = P.t; A.willDodge = Math.random() < lv.dodge; }
+      if (A.willDodge && A.dodgeT <= 0 && P.t - A.dodgeSeen >= lv.react * 0.3) {
+        let sx = -fs.dy * (perp >= 0 ? 1 : -1), sy = fs.dx * (perp >= 0 ? 1 : -1);
+        if (hitSolid(me.x + sx * 6, me.y + sy * 6)) { sx = -sx; sy = -sy; }
+        A.dodgeT = 0.3; A.dodgeX = sx; A.dodgeY = sy; A.willDodge = false;
+      }
+    }
+  } else if (!fs) A.dodgeSeen = -1;
+  if (A.dodgeT > 0) { A.dodgeT -= dt; k.ax = A.dodgeX; k.ay = A.dodgeY; return; }
+
+  // a distracted bot (easy) now and then stops to do nothing
+  A.idleT -= dt;
+  if (A.idleT > 0) return;
+  if (lv.idle > 0 && Math.random() < lv.idle * dt) { A.idleT = rand(0.4, 0.9); return; }
+
+  A.think -= dt; if (A.think <= 0) botThink();
+
+  // fighting: shove when close, spear from range
+  const tg = A.tgt, wantsFight = foe.deploy || (tg && tg.h) || (foe.nw && foe.nw.owner === 1);
+  if (d < 13 && !foeSafe && me.pushCD <= 0 && wantsFight) {
+    if (!A.inRange) { A.inRange = true; A.rt = lv.react * rand(0.5, 1); A.willShove = Math.random() < lv.push; }
+    A.rt -= dt;
+    if (A.rt <= 0) {                                          // decided at first contact, re-rolled every beat so a stand-off always breaks
+      if (A.willShove) {
+        me.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u');
+        pushEdge[1] = true;
+      }
+      A.rt = lv.react * rand(0.5, 1) + 0.5; A.willShove = Math.random() < lv.push;
+    }
+  } else if (d >= 13) A.inRange = false;
+  if (A.spearT <= 0) {
+    A.spearT = rand(0.5, 1.1);
+    if (d > 24 && d < 92 && !foeSafe && me.spearCD <= 0 && wantsFight && Math.random() < lv.spear && botLos(me, foe)) {
+      const sp = 58 * foe.ch.speed * (1 + foe.m.spd), t = d / 340;
+      const lx = foe.x + (foe.vx || 0) * sp * t * lv.lead, ly = foe.y + (foe.vy || 0) * sp * t * lv.lead;
+      let ax = lx - me.x, ay = ly - me.y; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;
+      const e = (Math.random() * 2 - 1) * lv.aim, c = Math.cos(e), s = Math.sin(e);
+      me.aimx = ax * c - ay * s; me.aimy = ax * s + ay * c;
+      fireSpear(me);
+      return;
+    }
+  }
+
+  // movement along the path to the chosen target
+  if (!tg) return;
+  if (tg.w) {
+    if (me.nw === tg.w && me.can) {                          // next to its window: stand still so the seal works
+      A.stuck = 0;
+      if (foe.deploy === tg.w && !foeSafe) A.clash += dt; else A.clash = 0;
+      if (A.clash < 0.8 + lv.react * 2 || d < 9) return;      // a stand-off on one window: after a beat, let go and go shove the rival off
+      k.ax = dx / d * lv.spd; k.ay = dy / d * lv.spd; return;
+    }
+  } else if (d < 9) return;
+  while (A.path.length > 1 && Math.hypot(A.path[0].x - me.x, A.path[0].y - me.y) < 3.5) A.path.shift();
+  let gx, gy;
+  if (tg.h && d < 30 && botLos(me, foe)) { gx = foe.x; gy = foe.y; }
+  else if (A.path.length) { gx = A.path[0].x; gy = A.path[0].y; }
+  else if (tg.w) { gx = tg.tile[0] * T + 4; gy = tg.tile[1] * T + 4; }
+  else return;
+  let vx = gx - me.x, vy = gy - me.y; const vl = Math.hypot(vx, vy);
+  if (vl < 0.6) return;
+  k.ax = vx / vl * lv.spd; k.ay = vy / vl * lv.spd;
+  // stuck detection: pushing but not getting anywhere means give this target up for a few seconds
+  A.stuck += Math.hypot(me.x - A.lx, me.y - A.ly) < 0.12 * dt * 58 ? dt : -A.stuck;
+  A.lx = me.x; A.ly = me.y;
+  if (A.stuck > 0.9) { if (tg.w) A.ban[tg.w.i] = P.t + 3; A.stuck = 0; A.think = 0; }
+}
+
+/* =====================================================================
    MAIN UPDATE / RENDER
    ===================================================================== */
 const confirmKey = () => pressed.has('ok') || pressed.has('act');
@@ -3364,11 +3564,10 @@ function update(dt) {
     case 'intro': updateIntro(dt); break;
     case 'title': {
       const o = G.tsel;
-      if (left && o % 2 === 1) { G.tsel = o - 1; SFX.ui(); }
-      if (right && o % 2 === 0) { G.tsel = o + 1; SFX.ui(); }
-      if (up && o >= 2) { G.tsel = o - 2; SFX.ui(); }
-      if (down && o < 2) { G.tsel = o + 2; SFX.ui(); }
-      if (pressed.has('d1')) titlePick(0); else if (pressed.has('d2')) titlePick(1); else if (pressed.has('d3')) titlePick(2);
+      if ((left || right) && o < 4) { G.tsel = o ^ 1; SFX.ui(); }
+      if (up && o >= 2) { G.tsel = o === 4 ? 3 : o - 2; SFX.ui(); }
+      if (down && o < 4) { G.tsel = o < 2 ? o + 2 : 4; SFX.ui(); }
+      if (pressed.has('d1')) titlePick(0); else if (pressed.has('d2')) titlePick(1); else if (pressed.has('d3')) titlePick(2); else if (pressed.has('d4')) titlePick(3);
       else if (confirmKey()) titlePick(G.tsel);
       break;
     }
@@ -3380,6 +3579,7 @@ function update(dt) {
     case 'levels':
       if (left) { G.lv = (G.lv + 2) % 3; SFX.ui(); }
       if (right) { G.lv = (G.lv + 1) % 3; SFX.ui(); }
+      if (G.bot && pressed.has('bot')) setBotLvl((G.botLvl + 1) % 3);
       if (G.mode === 'dom') {
         const k = DOM_TIMES.indexOf(G.domDur);
         if (up && k < DOM_TIMES.length - 1) setDomDur(DOM_TIMES[k + 1]);
@@ -3466,12 +3666,13 @@ function render() {
   }
   const hint = document.getElementById('hint');
   const playing = G.state === 'play' || G.state === 'countdown';
-  const uiKey = (playing ? 'play' : 'menu') + G.np + (G.ff ? 'f' : 'n');
+  const uiKey = (playing ? 'play' : 'menu') + humans() + (G.ff ? 'f' : 'n');
   if (uiKey !== ui.key) {                                    // touch controls follow what is on screen
-    ui.key = uiKey; document.body.dataset.ui = playing ? 'play' : 'menu'; document.body.dataset.np = G.np; document.body.dataset.ff = G.ff ? '1' : '0';
+    ui.key = uiKey; document.body.dataset.ui = playing ? 'play' : 'menu'; document.body.dataset.np = humans(); document.body.dataset.ff = G.ff ? '1' : '0';
     if (!playing) sticks.forEach(stickRelease);
     layoutTouch();
   }
+  if (TOUCH && document.body.dataset.face !== (faceMode() ? '1' : '0')) fit();
   const txt = TOUCH ? (playing ? 'TURN YOUR PHONE SIDEWAYS FOR A BIGGER SCREEN.' : 'TAP THE SCREEN OR USE THE PAD. TURN SIDEWAYS FOR A BIGGER SCREEN.') : (playing ? 'PAUSE: P.  SOUND: M.' : 'ARROWS + ENTER, OR CLICK / TAP.');
   if (hint.textContent !== txt) { hint.textContent = txt; layoutTouch(); }
   cv.style.cursor = !playing && ui.cur.some(b => ui.mx >= b.x && ui.mx < b.x + b.w && ui.my >= b.y && ui.my < b.y + b.h) ? 'pointer' : 'default';
@@ -3492,9 +3693,9 @@ function frame(now) {
 /* ---------- input ---------- */
 // menus use NAV names; during play each key belongs to a player
 const NAV = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
-  Space: 'act', KeyE: 'act', Enter: 'ok', Escape: 'esc', KeyP: 'pause', KeyM: 'mute', KeyR: 'retry', KeyF: 'ff', KeyH: 'hints', Digit1: 'd1', Digit2: 'd2', Digit3: 'd3' };
+  Space: 'act', KeyE: 'act', Enter: 'ok', Escape: 'esc', KeyP: 'pause', KeyM: 'mute', KeyR: 'retry', KeyF: 'ff', KeyH: 'hints', Digit1: 'd1', Digit2: 'd2', Digit3: 'd3', Digit4: 'd4', KeyB: 'bot' };
 function mapPlay(code) {
-  const two = G.np === 2;
+  const two = humans() === 2;
   switch (code) {
     case 'KeyA': return [0, 'left']; case 'KeyD': return [0, 'right']; case 'KeyW': return [0, 'up']; case 'KeyS': return [0, 'down'];
     case 'KeyQ': return [0, 'ping'];
@@ -3502,7 +3703,7 @@ function mapPlay(code) {
     case 'ArrowLeft': return [two ? 1 : 0, 'left']; case 'ArrowRight': return [two ? 1 : 0, 'right'];
     case 'ArrowUp': return [two ? 1 : 0, 'up']; case 'ArrowDown': return [two ? 1 : 0, 'down'];
     case 'Slash': return two ? [1, 'ping'] : null;
-    case 'Period': return two ? [1, 'push'] : null;
+    case 'Period': return two ? [1, 'push'] : (G.bot ? [0, 'push'] : null);
   }
   return null;
 }
@@ -3547,7 +3748,7 @@ function stickUpdate(s, e) {
   if (d > R) { dx = dx / d * R; dy = dy / d * R; }
   s.knob.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
   if (m < 0.16) { k.ax = 0; k.ay = 0; }                               // dead zone in the middle
-  else { const mag = clamp((m - 0.16) / 0.55, 0.4, 1), l = Math.hypot(dx, dy); k.ax = dx / l * mag; k.ay = dy / l * mag; }
+  else { const mag = clamp((m - 0.16) / 0.55, 0.4, 1), l = Math.hypot(dx, dy), sg = s.i === 1 && document.body.dataset.face === '1' ? -1 : 1; k.ax = sg * dx / l * mag; k.ay = sg * dy / l * mag; }
 }
 function stickRelease(s) {
   s.id = null; inp[s.i].ax = 0; inp[s.i].ay = 0;
@@ -3569,21 +3770,41 @@ sticks.forEach(s => {
   s.zone.addEventListener('pointerup', up); s.zone.addEventListener('pointercancel', up);
 });
 // where each zone sits depends on how the phone is held and on one or two players
+function faceMode() { return TOUCH && humans() === 2 && window.innerHeight > window.innerWidth && (G.state === 'play' || G.state === 'countdown' || G.state === 'pause' || G.state === 'tutorial'); }
 function layoutTouch() {
   if (!TOUCH) return;
-  const mode = document.body.dataset.mode, W = window.innerWidth, H = window.innerHeight, two = G.np === 2;
+  const mode = document.body.dataset.mode, W = window.innerWidth, H = window.innerHeight, two = humans() === 2, face = document.body.dataset.face === '1';
+  const vm = Math.min(W, H) / 100, cr = cv.getBoundingClientRect();
   const top = mode === 'land' ? 0 : Math.round(document.getElementById('bar').getBoundingClientRect().bottom + 4);
+  const place = (b, o) => {                                   // set only the sides given; the rest fall back to the stylesheet
+    for (const [a, z] of [['left', 'right'], ['top', 'bottom']]) {
+      b.style[a] = o && o[a] !== undefined ? Math.round(o[a]) + 'px' : '';
+      b.style[z] = o && o[z] !== undefined ? Math.round(o[z]) + 'px' : (o && o[a] !== undefined ? 'auto' : '');
+    }
+  };
   sticks.forEach(s => {
-    const left = s.i === 0 ? 0 : W / 2, width = s.i === 0 ? (two || mode === 'land' ? W / 2 : W) : W / 2, on = s.i === 0 || two;
-    Object.assign(s.zone.style, { left: left + 'px', width: width + 'px', top: top + 'px', bottom: '0', display: on ? 'block' : 'none' });
+    const on = s.i === 0 || two;
+    // box = left, top, width, height. Face to face: P1 owns the left half below the game, P2 the right half above it (that is P2's left thumb)
+    const box = face ? (s.i === 0 ? [0, cr.bottom, W / 2, H - cr.bottom] : [W / 2, 0, W / 2, cr.top]) : [s.i === 0 ? 0 : W / 2, top, W / 2, H - top];
+    Object.assign(s.zone.style, { left: box[0] + 'px', top: box[1] + 'px', width: box[2] + 'px', height: box[3] + 'px', bottom: 'auto', display: on ? 'block' : 'none' });
     s.base.style.display = on ? 'block' : 'none';
-    s.rest = [left + width / 2, top + (H - top) * 0.62];
+    s.rest = [box[0] + box[2] / 2, box[1] + box[3] * (face && s.i === 1 ? 0.45 : 0.62)];
     if (s.id === null) { stickPlace(s, s.rest[0], s.rest[1]); s.base.classList.toggle('ghost', document.body.dataset.ui === 'play'); }
   });
-  const vm = Math.min(W, H) / 100, callTop = mode === 'land' ? Math.round(H * 0.3) : top + 8;
-  document.querySelectorAll('#touch .call').forEach(b => { b.style.top = callTop + 'px'; });
-  document.querySelectorAll('#touch .push').forEach(b => { b.style.top = Math.round(callTop + (two ? 17 * vm + 1.5 * vm : 0)) + 'px'; });
-  const pz = document.querySelector('#touch .pause'); if (mode === 'port') pz.style.top = (top + 8) + 'px';
+  const q = sel => document.querySelector(sel), pz = q('#touch .pause');
+  if (face) {
+    const pw = 24 * vm, ph = 17 * vm, cs = 10.5 * vm, m = 4 * vm, edge = 11 * vm;
+    place(q('#touch .push.c0'), { left: W - pw - m, top: H - ph - edge });
+    place(q('#touch .call.c0'), { left: W - m - pw / 2 - cs / 2, top: H - ph - edge - cs - 1.5 * vm });
+    place(q('#touch .push.c1'), { left: m, top: edge });
+    place(q('#touch .call.c1'), { left: m + pw / 2 - cs / 2, top: edge + ph + 1.5 * vm });
+    pz.style.top = Math.round(cr.bottom + 1.5 * vm) + 'px';
+  } else {
+    const callTop = mode === 'land' ? Math.round(H * 0.3) : top + 8, cs = 10.5 * vm;
+    document.querySelectorAll('#touch .call').forEach(b => place(b, { top: callTop }));
+    document.querySelectorAll('#touch .push').forEach(b => place(b, two ? { top: callTop + cs + 1.5 * vm } : null));
+    pz.style.top = mode === 'port' ? (top + 8) + 'px' : '';
+  }
 }
 document.querySelectorAll('#touch [data-tap]').forEach(b => {
   const t = b.dataset.tap;
@@ -3616,12 +3837,13 @@ function fit() {
   const W = document.documentElement.clientWidth, H = window.innerHeight, dpr = window.devicePixelRatio || 1;
   const mode = !TOUCH ? 'desk' : (W > H ? 'land' : 'port');
   document.body.dataset.mode = mode;
+  const face = faceMode(); document.body.dataset.face = face ? '1' : '0';
   shell.style.height = H + 'px';
   document.getElementById('mute').textContent = (mode === 'land' ? 'SND: ' : 'SOUND: ') + (muted ? 'OFF' : 'ON');
   document.getElementById('fs').textContent = mode === 'land' ? 'FULL' : 'FULLSCREEN';
   let availW, availH;
   if (mode === 'land') { availW = W; availH = H - 8; }
-  else if (mode === 'port') { availW = W - 8; availH = H - bar.offsetHeight - 220; }
+  else if (mode === 'port') { availW = W - 8; availH = face ? H - 300 : H - bar.offsetHeight - 220; }
   else { availW = W - 32; availH = H - bar.offsetHeight - 48; }
   let s = Math.min(availW / VW, availH / VH);
   const d = s * dpr;
@@ -3633,7 +3855,7 @@ window.addEventListener('resize', fit); window.addEventListener('orientationchan
 fit();
 
 /* test and debug hooks */
-window.__sth = { startDom, beginGame, startIntro, endIntro, spawnMob, buildTut, tutNext, tutDone, finishDom, SURV, MOB, ROUNDS, musicState: () => ({ playing: !!mus, key: mus ? mus.key : null, loaded: !!TRACKS.menu.buf, gameLoaded: !!TRACKS.game.buf, duoLoaded: !!TRACKS.duo.buf }), audioDbg: { set(c) { actx = c; bus = null; sfxBus = null; screamUntil = 0; muted = false; }, SFX, tone, noise, setGohGain(v) { gohGain = v; } }, gohReady: () => !!gohBuf, G, inp, pingEdge, pushEdge, pressed, startDeath, endDeath, startLeave, startLift, update, startRun, startRound, pickCard, rerollCards, takeDoor, clearNext, DIFFS, LAYOUTS, BOONS, BOON_BY, CHARS, meta, get P() { return P; }, psiAt, render };
+window.__sth = { botInit, botUpdate, BOT_LV, BOT_STYLE, startDom, beginGame, startIntro, endIntro, spawnMob, buildTut, tutNext, tutDone, finishDom, SURV, MOB, ROUNDS, musicState: () => ({ playing: !!mus, key: mus ? mus.key : null, loaded: !!TRACKS.menu.buf, gameLoaded: !!TRACKS.game.buf, duoLoaded: !!TRACKS.duo.buf }), audioDbg: { set(c) { actx = c; bus = null; sfxBus = null; screamUntil = 0; muted = false; }, SFX, tone, noise, setGohGain(v) { gohGain = v; } }, gohReady: () => !!gohBuf, G, inp, pingEdge, pushEdge, pressed, startDeath, endDeath, startLeave, startLift, update, startRun, startRound, pickCard, rerollCards, takeDoor, clearNext, DIFFS, LAYOUTS, BOONS, BOON_BY, CHARS, meta, get P() { return P; }, psiAt, render };
 
 requestAnimationFrame(frame);
 })();
