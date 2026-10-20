@@ -3810,8 +3810,9 @@ document.querySelectorAll('#touch [data-tap]').forEach(b => {
   const t = b.dataset.tap;
   b.addEventListener('pointerdown', e => {
     e.preventDefault(); audioInit(); b.classList.add('on');
-    if (t === 'ping0' || t === 'ping1') { if (G.state === 'play') pingEdge[+t.slice(4)] = true; }
-    else if (t === 'push0' || t === 'push1') { if (G.state === 'play') pushEdge[+t.slice(4)] = true; }
+    const who = humans() === 1 ? 0 : +t.slice(4);              // with one human (solo, or against the CPU) the right-hand button is still player 1's
+    if (t === 'ping0' || t === 'ping1') { if (G.state === 'play') pingEdge[who] = true; }
+    else if (t === 'push0' || t === 'push1') { if (G.state === 'play') pushEdge[who] = true; }
     else pressed.add(t);
   });
   const off = () => b.classList.remove('on');
